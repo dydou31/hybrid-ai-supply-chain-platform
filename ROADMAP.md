@@ -1,169 +1,161 @@
 # Hybrid AI Supply Chain Platform — Roadmap
 
-Cette roadmap présente **toutes les étapes du projet**, depuis la création initiale jusqu’aux fonctionnalités avancées (cloud, Kubernetes, MLOps).  
-Elle sert de guide d’évolution et de démonstrateur pour un portfolio AI Platform Engineer / Full Stack.
+Cette roadmap présente l'évolution complète du projet **Hybrid AI Supply Chain Platform**,
+depuis la construction du backend jusqu'à une plateforme AI industrialisée et déployable
+dans le cloud.
 
----
+L'objectif est de construire un projet portfolio démontrant des compétences en :
 
-## 🟦 1. Initialisation du projet
-
-### 1.1 Définition du positionnement
-- Définir le projet comme démonstrateur professionnel
-- Définir les objectifs : architecture, IA, cloud, industrialisation
-- Rédiger le fichier `PROJECT_SCOPE.md`
-
-### 1.2 Création du dépôt GitHub
-- Création du repo public
-- Ajout du README minimal
-- Configuration du remote
-- Premier push du projet
-
----
-
-## 🟩 2. Mise en place de l’environnement
-
-### 2.1 Environnement Python
-- Création du dossier projet
-- Création de l’environnement `.venv`
-- Installation de FastAPI + Uvicorn
-- Création du fichier `requirements.txt`
-
-### 2.2 Structure initiale du backend
-- Création du dossier `app/`
-- Création de `main.py`
-- Création des dossiers : `routers/`, `services/`, `models/`, `utils/`
-- Ajout des endpoints de base : `/health`, `/docs`
-
----
-
-## 🟧 3. Documentation professionnelle
-
-### 3.1 README professionnel
-- Présentation du projet
-- Architecture
-- Installation
-- Lancement
+- Python
+- FastAPI
+- Backend Engineering
+- PostgreSQL
+- SQLAlchemy
 - Docker
-- Roadmap résumée
-- Auteur
-
-### 3.2 Documentation API
-- OpenAPI automatique via FastAPI
-- Organisation claire des modules
-
----
-
-## 🟨 4. Modules métier (Supply Chain)
-
-### 4.1 CRUD Fournisseurs
-### 4.2 CRUD Produits
-### 4.3 CRUD Commandes
-### 4.4 Module Monitoring
-- Logs
-- Metrics
-- Health-checks avancés
+- CI/CD
+- Cloud
+- Infrastructure as Code
+- Kubernetes
+- Machine Learning
+- MLOps
+- AI Engineering
+- Full Stack Development
 
 ---
 
-## 🟪 5. Intégration IA (démonstrateur)
+# 🟦 PHASE 0 — Positionnement du projet
 
-### 5.1 Prévisions
-- Endpoint de prévision simple (mock ou modèle léger)
+## 0.1 Objectif professionnel
 
-### 5.2 Scoring
-- Endpoint de scoring (mock ou modèle léger)
+Positionner le projet comme démonstrateur professionnel pour les métiers :
 
-### 5.3 Classification
-- Endpoint de classification (mock ou modèle léger)
+- AI Platform Engineer
+- AI Full Stack Engineer
+- AI Engineer
+- ML Platform Engineer
+- Cloud / DevOps orienté IA
 
----
+## 0.2 Définition du cas métier
 
-## 🟥 6. Dockerisation complète
+Créer une plateforme de gestion Supply Chain capable de :
 
-### 6.1 Dockerfile
-### 6.2 .dockerignore
-### 6.3 Build de l’image
-### 6.4 Run du container
-### 6.5 Tests de l’API dans Docker
+- gérer les fournisseurs
+- gérer les produits
+- gérer les commandes
+- suivre les données Supply Chain
+- effectuer des prévisions
+- produire des scores
+- classifier des données
+- exposer les fonctionnalités via une API
+- visualiser les données via un frontend
+- industrialiser les modèles IA
 
----
+## 0.3 Documentation initiale
 
-## 🟫 7. Industrialisation (CI/CD)
-
-### 7.1 GitHub Actions
-- Build automatique
-- Tests automatiques
-- Linting
-- Analyse de sécurité
-
-### 7.2 Docker Hub (optionnel)
-- Push automatique de l’image
-
----
-
-## 🟦 8. Base de données (PostgreSQL)
-
-### 8.1 Ajout SQLAlchemy
-### 8.2 Ajout Alembic (migrations)
-### 8.3 docker-compose
-### 8.4 Connexion FastAPI ↔ PostgreSQL
-### 8.5 Tests des endpoints
+- [x] `PROJECT_SCOPE.md`
+- [x] `README.md`
+- [x] `ROADMAP.md`
 
 ---
 
-## 🟩 9. Authentification & Sécurité
+# 🟩 PHASE 1 — Fondations du projet
 
-### 9.1 JWT
-### 9.2 RBAC (rôles)
-### 9.3 Gestion des utilisateurs
-### 9.4 Sécurisation des endpoints
+## 1.1 Repository
 
----
+- [x] Création du repository GitHub
+- [x] Configuration Git
+- [x] `.gitignore`
+- [x] Premier push
 
-## 🟧 10. Frontend (optionnel mais puissant pour portfolio)
+## 1.2 Environnement Python
 
-### 10.1 Création d’un frontend React/Next.js
-### 10.2 Dashboard
-### 10.3 Pages fournisseurs / IA / monitoring
-### 10.4 Connexion à l’API FastAPI
+- [x] Création de `.venv`
+- [x] Installation de FastAPI
+- [x] Installation de Uvicorn
+- [x] `requirements.txt`
 
----
+## 1.3 Structure du projet
 
-## 🟨 11. Déploiement cloud
+Structure cible :
 
-### 11.1 Choix du cloud (Azure / AWS)
-### 11.2 Déploiement Docker
-### 11.3 Load balancer
-### 11.4 Monitoring cloud
-### 11.5 Secret manager
+```text
+hybrid-ai-supply-chain-platform/
+│
+├── app/
+│   ├── core/
+│   │   └── database.py
+│   │
+│   ├── models/
+│   │   └── supplier.py
+│   │
+│   ├── routers/
+│   │   └── suppliers.py
+│   │
+│   ├── schemas/
+│   │   └── supplier.py
+│   │
+│   ├── services/
+│   │   └── supplier_service.py
+│   │
+│   └── main.py
+│
+├── data/
+├── docker/
+├── docs/
+├── kubernetes/
+├── terraform/
+├── tests/
+│
+├── alembic/
+├── alembic.ini
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+├── README.md
+├── PROJECT_SCOPE.md
+└── ROADMAP.md
 
----
 
-## 🟪 12. Kubernetes (niveau avancé)
-
-### 12.1 Manifests Kubernetes
-### 12.2 Charts Helm
-### 12.3 Déploiement sur AKS / EKS
-### 12.4 Autoscaling
-### 12.5 Monitoring Prometheus + Grafana
-
----
-
-## 🟥 13. MLOps (niveau expert)
-
-### 13.1 Pipelines de training
-### 13.2 Pipelines de retraining
-### 13.3 Monitoring des modèles
-### 13.4 Versioning des modèles
-### 13.5 Déploiement des modèles
-
----
-
-## 🟫 14. Vision long terme
-
-- Plateforme complète IA + Supply Chain
-- Architecture cloud-native
-- Microservices
-- Observabilité avancée
-- Automatisation des flux Supply Chain
-- Intégration ERP/WMS
+                    UTILISATEUR / FRONTEND
+                             │
+                             ▼
+                  ┌──────────────────────┐
+                  │   Supply Chain API   │
+                  │       FastAPI        │
+                  └──────────┬───────────┘
+                             │
+            ┌────────────────┼────────────────┐
+            │                │                │
+            ▼                ▼                ▼
+       PostgreSQL        AI Engine        Monitoring
+       SQLAlchemy        ML / LLM         Logs / Metrics
+       Alembic           Forecast          OpenTelemetry
+                          Scoring
+                          Classification
+            │                │
+            └────────────────┼────────────────┐
+                             ▼
+                       Docker / Compose
+                             │
+                             ▼
+                       GitHub Actions
+                             │
+                             ▼
+                    Container Registry
+                             │
+                    ┌────────┴────────┐
+                    ▼                 ▼
+                  Cloud          Kubernetes
+                    │                 │
+                Terraform          Helm
+                    │                 │
+                    └────────┬────────┘
+                             ▼
+                           MLOps
+                             │
+              ┌──────────────┼──────────────┐
+              ▼              ▼              ▼
+          Training       Deployment      Monitoring
+                                            │
+                                            ▼
+                                         Retraining
