@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from app.routers.suppliers import router as suppliers_router
 from datetime import datetime
+from app.models import Supplier
+
+
 
 app = FastAPI(
     title="Hybrid AI Supply Chain Platform",

@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    container_name: hybrid_ai_db
+    restart: always
+    environment:
+      POSTGRES_USER: dylan
+      POSTGRES_PASSWORD: dylan
+      POSTGRES_DB: hybrid_ai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - hybrid_ai_network
+
+volumes:
+  postgres_data:
+
+networks:
+  hybrid_ai_network:
