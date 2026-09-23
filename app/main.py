@@ -1,8 +1,9 @@
 from fastapi import FastAPI
-from app.routers.suppliers import router as suppliers_router
 from datetime import datetime
-from app.models import Supplier
 
+from app.routers.suppliers import router as suppliers_router
+from app.routers.purchase_orders import router as purchase_orders_router
+from app.routers.kpis import router as kpis_router
 
 
 app = FastAPI(
@@ -24,5 +25,7 @@ def health():
         "timestamp": datetime.utcnow().isoformat()
     }
 
-# On ajoute le router suppliers
+# On ajoute les routers
 app.include_router(suppliers_router)
+app.include_router(purchase_orders_router)
+app.include_router(kpis_router)
