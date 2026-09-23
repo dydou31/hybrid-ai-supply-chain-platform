@@ -87,12 +87,13 @@ def get_supplier_kpis(
             "delay_rate": delay_rate,
             "average_delay_days": average_delay_days,
         })
+
     import json
 
-    redis_client.setex(
+    redis_client.set(
         "kpis:suppliers",
-        300,
-        json.dumps(results, default=str)
+        json.dumps(results, default=str),
+        ex=300
     )
 
     return results

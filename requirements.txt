@@ -6,3 +6,4 @@ psycopg2-binary
 redis
 pytest
 httpx2
+anyio<4.15
