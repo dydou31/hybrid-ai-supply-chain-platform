@@ -14,3 +14,15 @@ def test_get_supplier_kpis():
     data = response.json()
 
     assert isinstance(data, list)
+    assert len(data) > 0
+
+    supplier = next(
+        item for item in data
+        if item["supplier"] == "Test Supplier"
+    )
+
+    assert supplier["purchase_orders"] == 1
+    assert float(supplier["total_value_eur"]) == 1000.0
+    assert supplier["delayed_orders"] == 1
+    assert supplier["delay_rate"] == 100.0
+    assert supplier["average_delay_days"] == 2
