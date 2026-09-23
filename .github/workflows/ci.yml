@@ -26,6 +26,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Check application import
+      - name: Run tests
         run: |
-          python -c "from app.main import app; print('Application import OK')"
+          PYTHONPATH=. pytest
