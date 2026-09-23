@@ -25,6 +25,18 @@ def health():
         "timestamp": datetime.utcnow().isoformat()
     }
 
+@app.get("/health/redis")
+def redis_health():
+    from app.core.redis import redis_client
+
+    redis_client.ping()
+
+    return {
+        "status": "healthy",
+        "redis": "connected"
+    }
+
+
 # On ajoute les routers
 app.include_router(suppliers_router)
 app.include_router(purchase_orders_router)

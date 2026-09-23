@@ -1,5 +1,5 @@
 from decimal import Decimal
-
+from app.core.redis import redis_client
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -18,6 +18,14 @@ router = APIRouter(
 def get_supplier_kpis(
     db: Session = Depends(get_db)
 ):
+    cache_key = "kpis:suppliers"
+
+    cached = redis_client.get(cache_key)
+
+    if cached:
+        import json
+        return json.loads(cached)
+
     suppliers = db.query(Supplier).all()
     purchase_orders = db.query(PurchaseOrder).all()
 
@@ -79,5 +87,12 @@ def get_supplier_kpis(
             "delay_rate": delay_rate,
             "average_delay_days": average_delay_days,
         })
+    import json
+
+    redis_client.setex(
+        "kpis:suppliers",
+        300,
+        json.dumps(results, default=str)
+    )
 
     return results
