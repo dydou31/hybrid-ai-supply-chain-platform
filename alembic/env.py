@@ -6,7 +6,7 @@ from sqlalchemy import pool
 
 from alembic import context
 import app.models
-
+import app.ai.models
 from app.database import Base
 
 
