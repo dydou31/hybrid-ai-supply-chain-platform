@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hybrid-ai-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hybrid-ai-api
+  template:
+    metadata:
+      labels:
+        app: hybrid-ai-api
+    spec:
+      containers:
+        - name: api
+          image: hybrid-ai-api:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://dylan:dylan@postgres:5432/hybrid_ai"
+            - name: REDIS_URL
+              value: "redis://redis:6379/0"

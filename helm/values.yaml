@@ -1,0 +1,7 @@
+api:
+  replicas: 1
+
+  image:
+    repository: hybrid-ai-api
+    tag: latest
+    pullPolicy: Never
