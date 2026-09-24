@@ -4,6 +4,7 @@ from datetime import datetime
 from app.routers.suppliers import router as suppliers_router
 from app.routers.purchase_orders import router as purchase_orders_router
 from app.routers.kpis import router as kpis_router
+from app.ai.router import router as ai_router
 
 
 app = FastAPI(
@@ -41,3 +42,4 @@ def redis_health():
 app.include_router(suppliers_router)
 app.include_router(purchase_orders_router)
 app.include_router(kpis_router)
+app.include_router(ai_router)

@@ -14,6 +14,6 @@ class KnowledgeDocument(Base):
     source: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     embedding: Mapped[list[float] | None] = mapped_column(
-        Vector(1536),
+        Vector(384),
         nullable=True,
     )

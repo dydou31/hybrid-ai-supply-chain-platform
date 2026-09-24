@@ -8,3 +8,5 @@ pytest
 httpx2
 anyio<4.15
 pgvector
+sentence-transformers
+requests
