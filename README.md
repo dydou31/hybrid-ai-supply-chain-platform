@@ -1,529 +1,702 @@
-Hybrid AI Supply Chain Platform
+# Hybrid AI Supply Chain Platform
 
-AI Platform Engineering / AI Foundation / Full Stack Portfolio Project
+**AI Foundation · Full Stack · AI Platform Engineering — Portfolio Project**
 
-Hybrid AI Supply Chain Platform est une plateforme de démonstration conçue autour d’un cas d’usage Supply Chain.
+A production-oriented demonstrator combining **Full Stack Engineering, Hybrid AI, RAG, Platform Engineering, Cloud Infrastructure and Observability** around a realistic Supply Chain use case.
 
-Le projet combine Backend Engineering, AI Engineering, LLM/RAG, Platform Engineering, Cloud, Kubernetes, Infrastructure as Code, CI/CD et Observability.
+The project demonstrates how a business application can evolve from a REST API into an end-to-end AI platform: structured operational data, semantic knowledge retrieval, a local LLM, a web interface, containerized services, cloud infrastructure and full-stack observability.
 
-L’objectif est de démontrer la capacité à construire une plateforme AI moderne de l’application jusqu’à son infrastructure d’exécution.
+---
 
-⸻
+## 🎯 Project Vision
 
-🎯 Project Vision
+Supply Chain teams work with both **structured operational data** and **unstructured business knowledge**.
 
+A useful AI assistant must therefore be able to answer questions such as:
+
+- How many suppliers do we have?
+- Which supplier has the most delayed purchase orders?
+- Which high-risk suppliers have the most delays?
+- Which suppliers combine high risk, delays and blocked stock?
+- Which supplier has recurring delivery issues?
+- What is the best-performing supplier according to available KPIs?
+
+This project implements a **Hybrid AI architecture** where deterministic operational analysis and semantic RAG complement each other instead of asking an LLM to calculate or invent business facts.
+
+---
+
+## 🏗️ Architecture
+
+```text
                     HYBRID AI SUPPLY CHAIN PLATFORM
+
+                               React
                                  │
-              ┌──────────────────┼──────────────────┐
-              │                  │                  │
-          BACKEND               AI              PLATFORM
-              │                  │                  │
-           FastAPI              LLM             Docker
-         PostgreSQL              RAG            Kubernetes
-         SQLAlchemy           pgvector          Terraform
-           Alembic            Forecast          CI/CD
-           REST API           Scoring          Security
-                              Agents          Networking
-              │                  │                  │
-              └──────────────────┼──────────────────┘
+                                 ▼
+                              FastAPI
                                  │
-                           OBSERVABILITY
-                                 │
-                    OpenTelemetry / Prometheus
+             ┌───────────────────┼───────────────────┐
+             │                   │                   │
+             ▼                   ▼                   ▼
+        PostgreSQL             Redis             Hybrid AI
+             │                                       │
+      SQLAlchemy/Alembic                ┌─────────────┴─────────────┐
+                                       │                           │
+                                       ▼                           ▼
+                            Structured Retrieval                  RAG
+                                       │                           │
+                              Supply Chain KPIs              MiniLM Embeddings
+                                       │                        pgvector
+                                       │                           │
+                                       └─────────────┬─────────────┘
+                                                     │
+                                                     ▼
+                                                Llama 3.2
+                                                  Ollama
+
+
+                     ─────── PLATFORM LAYER ───────
+
+                    Docker / Docker Compose
+                           GitHub Actions
+                         Kubernetes / Helm
+                           Terraform
+                         AWS ECS / Fargate
+                              ECR
+
+
+                     ───── OBSERVABILITY ─────
+
+                           OpenTelemetry
+                          /             \
+                         ▼               ▼
+                   Prometheus          Tempo
+                         \               /
+                          \             /
                               Grafana
+```
 
-⸻
+---
 
-🧱 Current Stack
+## 🧠 Hybrid AI
 
-Backend
+The AI Assistant combines two complementary retrieval strategies.
 
-* Python
-* FastAPI
-* Pydantic
-* SQLAlchemy
-* PostgreSQL
-* Alembic
+### Structured Retrieval
 
-Infrastructure
+Operational questions are answered using data retrieved from PostgreSQL and deterministic backend calculations.
 
-* Docker
-* Docker Compose
+Examples include:
 
-API
+- supplier counts;
+- risk-level analysis;
+- purchase-order delays;
+- delay rates;
+- average delay duration;
+- blocked stock;
+- supplier rankings;
+- multi-criteria supplier analysis.
 
-* REST
-* OpenAPI
-* Swagger UI
+The LLM receives the calculated context and is responsible for **natural-language presentation**, not for inventing the underlying business metrics.
 
-AI — planned
+### Semantic RAG
 
-* LLM APIs
-* RAG
-* embeddings
-* pgvector
-* forecasting
-* anomaly detection
-* AI agents
-* model routing
+Unstructured operational knowledge is embedded using:
 
-Platform — planned
+**Sentence Transformers — `all-MiniLM-L6-v2`**
 
-* Kubernetes
-* Helm
-* Terraform
-* GitHub Actions
-* Container Registry
+Embeddings are stored directly in PostgreSQL using:
 
-Observability — planned
+**pgvector**
 
-* OpenTelemetry
-* Prometheus
-* Grafana
-* structured logging
+Relevant documents are retrieved through vector similarity before being supplied to the LLM.
 
-⸻
+### Local LLM
 
-📁 Project Structure
+Generation is performed locally with:
 
+**Llama 3.2 3B via Ollama**
+
+This makes it possible to demonstrate a self-hosted LLM workflow without depending on an external inference API.
+
+### Business Language
+
+A Supply Chain business glossary allows the assistant to understand common terminology and abbreviations such as:
+
+```text
+frns → fournisseur / supplier
+cmd / cde → commande
+PO → purchase order
+DA → demande d'achat
+BC → bon de commande
+BL / DN → delivery note
+ASN → advanced shipping notice
+EDI → electronic data interchange
+LT → lead time
+MOQ → minimum order quantity
+OTD → on-time delivery
+ETA / ETD
+RMA
+VMI / CMI
+KPI
+```
+
+The glossary is extensible and helps bridge informal business language and backend concepts.
+
+---
+
+## 📊 Demonstration Dataset
+
+The local environment contains a deterministic Supply Chain dataset designed for reproducible demonstrations.
+
+```text
+104 suppliers
+501 purchase orders
+Multiple countries
+Low / medium / high supplier risk
+Blocked-stock values
+Requested and confirmed delivery dates
+On-time and delayed purchase orders
+```
+
+The dataset supports realistic operational queries while remaining completely synthetic.
+
+---
+
+## 💬 AI Assistant
+
+The React frontend includes an interactive AI Assistant connected to the FastAPI AI endpoint.
+
+Example questions:
+
+```text
+How many suppliers do we have?
+
+Which supplier has the most delays?
+
+Which high-risk suppliers have the most delayed orders?
+
+Which suppliers combine high risk, delays and blocked stock?
+
+Tell me about Dynamic Automotive.
+
+Which supplier has recurring delivery delays?
+```
+
+The UI exposes the type of context supplied to the model:
+
+- **PostgreSQL — structured operational data**
+- **pgvector — semantic knowledge retrieval**
+
+`Enter` submits a question while `Shift + Enter` creates a new line.
+
+---
+
+## 📦 Supplier Management
+
+The application exposes supplier data through both REST APIs and the React frontend.
+
+The Suppliers interface supports:
+
+- live supplier data from PostgreSQL;
+- text filtering;
+- filtering through supplier names, countries and risk levels;
+- ascending / descending sorting;
+- numerical blocked-stock sorting;
+- supplier risk visualization.
+
+---
+
+## 📈 Supply Chain KPIs
+
+The backend calculates operational KPIs from suppliers and purchase orders.
+
+Examples include:
+
+- total suppliers;
+- high-risk suppliers;
+- blocked stock;
+- purchase-order counts;
+- delayed orders;
+- delay rates;
+- average delay duration;
+- supplier performance comparisons.
+
+Redis is used for KPI caching where appropriate.
+
+---
+
+## 🔌 REST API
+
+The FastAPI backend exposes endpoints for:
+
+### Suppliers
+
+```text
+GET    /suppliers
+POST   /suppliers
+PUT    /suppliers/{id}
+DELETE /suppliers/{id}
+```
+
+### Purchase Orders
+
+Purchase-order endpoints expose operational procurement data.
+
+### KPIs
+
+```text
+/kpis/...
+```
+
+### Hybrid AI
+
+```text
+POST /ai/ask
+```
+
+The response can include:
+
+- generated answer;
+- semantic RAG sources;
+- structured-data source information.
+
+### API Documentation
+
+FastAPI automatically exposes OpenAPI documentation through Swagger UI.
+
+---
+
+## ❤️ Platform Health
+
+Dedicated health endpoints expose individual infrastructure dependencies.
+
+```text
+/health
+/health/postgres
+/health/redis
+/health/prometheus
+/health/grafana
+/health/tempo
+/health/ollama
+/health/platform
+```
+
+The aggregate platform endpoint distinguishes healthy and degraded states.
+
+The React **Platform Control Center** visualizes the status of the main platform services.
+
+---
+
+## 🔭 Observability
+
+The platform includes an end-to-end observability stack.
+
+### OpenTelemetry
+
+FastAPI is instrumented with OpenTelemetry for application telemetry and distributed tracing.
+
+### Prometheus
+
+Prometheus collects application and platform metrics.
+
+### Grafana
+
+Grafana provides provisioned dashboards and datasource configuration.
+
+### Tempo
+
+Tempo receives and stores distributed traces exported through OpenTelemetry.
+
+The stack makes it possible to investigate API activity and infrastructure behavior from a single observability environment.
+
+---
+
+## 🐳 Containerization
+
+The local platform runs through Docker Compose.
+
+Core services include:
+
+```text
+FastAPI
+PostgreSQL + pgvector
+Redis
+Prometheus
+Grafana
+Tempo
+```
+
+Ollama runs locally and is accessed by the containerized API for Llama inference.
+
+---
+
+## ☸️ Kubernetes & Helm
+
+The project includes Kubernetes deployment resources and a Helm chart.
+
+The local Kubernetes environment has been validated using Minikube.
+
+This layer demonstrates:
+
+- application deployment;
+- Kubernetes resources;
+- Helm-based packaging and configuration;
+- separation between application and infrastructure concerns.
+
+---
+
+## 🏗️ Infrastructure as Code
+
+Terraform is used to represent infrastructure declaratively.
+
+The project includes infrastructure work for both local Kubernetes-related resources and AWS deployment.
+
+---
+
+## ☁️ AWS Deployment
+
+A cloud deployment path has been validated on AWS using:
+
+- **Amazon ECR** for container images;
+- **Amazon ECS**;
+- **AWS Fargate**;
+- Terraform-managed infrastructure.
+
+The API container was built for the appropriate Fargate architecture and successfully deployed and health-checked in AWS.
+
+The demonstration infrastructure is not intended to represent a complete production AWS architecture.
+
+---
+
+## 🔄 CI/CD
+
+GitHub Actions validates the project through automated workflows.
+
+The CI environment includes support for the PostgreSQL/pgvector requirements needed by the application.
+
+This provides automated validation of backend changes before integration.
+
+---
+
+## 🖥️ Frontend
+
+The frontend is built with:
+
+```text
+React
+TypeScript
+Vite
+CSS
+```
+
+Main views include:
+
+### Dashboard
+
+Overview of Supply Chain KPIs and platform information.
+
+### Suppliers
+
+Searchable and sortable supplier dataset.
+
+### AI Assistant
+
+Hybrid AI interface combining PostgreSQL structured context and pgvector RAG.
+
+### Platform Control Center
+
+Infrastructure-health visualization with automatic refresh.
+
+---
+
+## 🧪 Testing
+
+Backend automated tests cover core application capabilities including:
+
+- API health;
+- suppliers;
+- purchase orders;
+- KPIs;
+- Redis integration.
+
+The frontend is validated through ESLint and the Vite production build.
+
+---
+
+## 🧱 Technology Stack
+
+### Full Stack
+
+- Python
+- FastAPI
+- Pydantic
+- SQLAlchemy
+- Alembic
+- PostgreSQL
+- Redis
+- React
+- TypeScript
+- Vite
+- REST / OpenAPI
+
+### AI / RAG
+
+- Llama 3.2
+- Ollama
+- Sentence Transformers
+- MiniLM
+- pgvector
+- Structured retrieval
+- Semantic retrieval
+- Hybrid AI context
+- Business terminology normalization
+
+### Platform Engineering
+
+- Docker
+- Docker Compose
+- Kubernetes
+- Minikube
+- Helm
+- Terraform
+- GitHub Actions
+
+### Cloud
+
+- AWS
+- Amazon ECR
+- Amazon ECS
+- AWS Fargate
+
+### Observability
+
+- OpenTelemetry
+- Prometheus
+- Grafana
+- Tempo
+
+---
+
+## 📁 Repository Structure
+
+```text
 hybrid-ai-supply-chain-platform/
 │
 ├── app/
-│   ├── main.py
+│   ├── ai/
+│   │   ├── business_glossary.py
+│   │   ├── embeddings.py
+│   │   ├── ingest.py
+│   │   ├── models.py
+│   │   ├── retrieval.py
+│   │   ├── router.py
+│   │   ├── service.py
+│   │   ├── structured_context.py
+│   │   └── structured_retrieval.py
 │   │
 │   ├── models/
-│   │   ├── supplier.py
-│   │   └── purchase_order.py
-│   │
-│   ├── schemas/
-│   │   ├── supplier.py
-│   │   └── purchase_order.py
-│   │
 │   ├── routers/
-│   │   ├── suppliers.py
-│   │   ├── purchase_orders.py
-│   │   └── kpis.py
-│   │
-│   └── services/
+│   ├── schemas/
+│   ├── services/
+│   ├── database.py
+│   └── main.py
 │
-├── alembic/
-│
+├── frontend/
 ├── tests/
-│
-├── data/
-│
-├── docker/
-│
+├── scripts/
+├── alembic/
 ├── kubernetes/
-│
+├── helm/
 ├── terraform/
-│
-├── docs/
+├── monitoring/
 │
 ├── Dockerfile
 ├── docker-compose.yml
-├── alembic.ini
 ├── requirements.txt
-├── PROJECT_SCOPE.md
-├── ROADMAP.md
 └── README.md
+```
 
-⸻
+---
 
-🏗️ Current Architecture
+## 🚀 Local Development
 
-                    Supply Chain Client
-                            │
-                            ▼
-                    ┌───────────────┐
-                    │    FastAPI    │
-                    │      API      │
-                    └───────┬───────┘
-                            │
-             ┌──────────────┼──────────────┐
-             ▼              ▼              ▼
-        Suppliers      Purchase Orders    KPIs
-             │              │              │
-             └──────────────┼──────────────┘
-                            ▼
-                      SQLAlchemy
-                            │
-                            ▼
-                       PostgreSQL
-                            │
-                         Alembic
+### Start the platform
 
-⸻
+```bash
+docker compose up -d --build
+```
 
-✅ Current Features
+Check running services:
 
-API
+```bash
+docker compose ps
+```
 
-* FastAPI application
-* OpenAPI / Swagger
-* Health endpoint
-* Modular routers
-* Pydantic validation
+### Start Ollama
 
-Suppliers
+Make sure Ollama is available locally with the expected model:
 
-* Create supplier
-* Get suppliers
-* Get supplier by ID
-* Update supplier
-* Delete supplier
-* Risk level validation
-* Blocked stock tracking
+```bash
+ollama pull llama3.2:3b
+```
 
-Purchase Orders
+### Start the frontend
 
-* Create purchase order
-* Get purchase orders
-* Get purchase order by ID
-* Supplier foreign key validation
-* PO status validation
-* Monetary precision with Decimal
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-KPIs
+### Run backend tests
 
-* Supplier PO count
-* Total PO value
-* Delayed orders
-* Delay rate
-* Average delay
-* Blocked stock
+```bash
+docker compose run --rm \
+  -e PYTHONPATH=/app \
+  -v "$PWD/tests:/app/tests" \
+  api pytest tests -v
+```
 
-Database
+### Validate the frontend
 
-* PostgreSQL
-* SQLAlchemy
-* Alembic
-* Database migrations
-* Foreign keys
+```bash
+cd frontend
+npm run lint
+npm run build
+```
 
-⸻
+---
 
-🚧 Roadmap
+## 🧩 Engineering Challenges
 
-The project will evolve through the following stages:
+The project was deliberately built incrementally, exposing realistic integration and debugging scenarios.
 
-Backend
-   ↓
+Examples encountered during development include:
+
+- SQLAlchemy/Alembic model metadata integration;
+- PostgreSQL connection failures;
+- Redis service addressing inside Docker;
+- pgvector embedding-dimension alignment;
+- pgvector support in CI;
+- ARM64 vs AMD64 container architecture for AWS Fargate;
+- Python PostgreSQL driver dependencies in cloud containers;
+- OpenTelemetry and Tempo integration;
+- frontend graceful degradation when backend services are unavailable;
+- filtering irrelevant semantic retrieval results;
+- preventing LLMs from altering deterministic business rankings;
+- scaling structured AI context beyond a small supplier dataset.
+
+These issues are part of the engineering value of the project: the objective is not only to assemble technologies, but to understand how they interact and how to troubleshoot them.
+
+---
+
+## 🔐 Scope & Limitations
+
+This repository is a **portfolio demonstrator**, not a production Supply Chain system.
+
+It intentionally demonstrates a broad engineering chain while keeping the environment manageable on a local development machine.
+
+The current implementation does **not** claim to provide:
+
+- production multi-cloud infrastructure;
+- enterprise IAM or network architecture;
+- production disaster recovery;
+- GPU scheduling;
+- production autoscaling;
+- full LLMOps lifecycle management;
+- autonomous AI agents;
+- MCP infrastructure;
+- production-grade model routing;
+- enterprise secrets management.
+
+These would represent logical extensions of the platform rather than capabilities already implemented.
+
+---
+
+## 🎯 Engineering Focus
+
+The project sits at the intersection of two engineering perspectives.
+
+### AI Foundation / Full Stack Engineering
+
+```text
+React
+  ↓
+FastAPI
+  ↓
+PostgreSQL / Redis
+  ↓
+Structured Retrieval + RAG
+  ↓
+Local LLM
+```
+
+### AI Foundation / Platform Engineering
+
+```text
+Application
+    ↓
 Docker
-   ↓
+    ↓
 CI/CD
-   ↓
-AI / RAG
-   ↓
-Observability
-   ↓
-Kubernetes
-   ↓
-Terraform
-   ↓
-Cloud
-   ↓
-LLMOps
-
-See ROADMAP.md for the complete roadmap.
-
-⸻
-
-🚀 Local Installation
-
-1. Clone the repository
-
-git clone https://github.com/dydou31/hybrid-ai-supply-chain-platform.git
-cd hybrid-ai-supply-chain-platform
-
-2. Create the Python environment
-
-python3 -m venv .venv
-source .venv/bin/activate
-
-3. Install dependencies
-
-pip install -r requirements.txt
-
-4. Start PostgreSQL
-
-docker compose up -d
-
-5. Apply database migrations
-
-alembic upgrade head
-
-6. Start the API
-
-uvicorn app.main:app --reload
-
-API:
-
-http://127.0.0.1:8000
-
-Swagger:
-
-http://127.0.0.1:8000/docs
-
-⸻
-
-🐳 Docker
-
-The application is progressively being containerized.
-
-Build:
-
-docker build -t hybrid-ai-platform .
-
-Run:
-
-docker run -p 8000:8000 hybrid-ai-platform
-
-The final architecture will use Docker containers for the API, database and AI services where appropriate.
-
-⸻
-
-🧪 API Examples
-
-Health
-
-GET /health
-
-Example:
-
-{
-  "status": "healthy",
-  "timestamp": "2026-09-23T..."
-}
-
-Suppliers
-
-GET /suppliers
-
-Purchase Orders
-
-GET /purchase-orders
-
-Supplier KPIs
-
-GET /kpis/suppliers
-
-Example:
-
-{
-  "supplier": "ZF",
-  "purchase_orders": 1,
-  "total_value_eur": 6250,
-  "delayed_orders": 1,
-  "delay_rate": 100,
-  "average_delay_days": 2
-}
-
-⸻
-
-🤖 AI Architecture — Planned
-
-The AI layer will progressively introduce:
-
-                   AI REQUEST
-                       │
-                       ▼
-                 AI API / Agent
-                       │
-             ┌─────────┴─────────┐
-             ▼                   ▼
-           RAG                LLM Router
-             │                   │
-        pgvector             Model A/B/C
-             │                   │
-       ┌─────┴─────┐             │
-       ▼           ▼             ▼
-   Documents    SQL Data      Response
-       │           │
-       └─────┬─────┘
-             ▼
-        AI RESPONSE
-
-Planned capabilities:
-
-* RAG
-* embeddings
-* vector search
-* Supply Chain AI assistant
-* forecasting
-* anomaly detection
-* supplier risk scoring
-* model routing
-* model fallback
-* AI evaluation
-
-⸻
-
-☁️ Platform Architecture — Planned
-
-GitHub
-   │
-   ▼
-GitHub Actions
-   │
-   ▼
-Container Registry
-   │
-   ▼
-Kubernetes
-   │
-   ├── FastAPI
-   ├── AI Service
-   ├── PostgreSQL
-   ├── Redis
-   └── Observability
-          │
-          ├── OpenTelemetry
-          ├── Prometheus
-          └── Grafana
-
-Infrastructure will progressively be managed using:
-
-* Terraform
-* Kubernetes
-* Helm
-* cloud-native services
-
-⸻
-
-🔐 Security — Planned
-
-* JWT authentication
-* RBAC
-* secrets management
-* TLS
-* secure configuration
-* dependency scanning
-* container image scanning
-* IAM
-* least privilege
-* network isolation
-
-⸻
-
-📊 Observability — Planned
-
-The platform will expose technical and AI metrics.
-
-Examples:
-
-API latency
-HTTP errors
-Request throughput
-Database latency
-Container health
-LLM latency
-Token usage
-Model errors
-AI request traces
-
-Technologies:
-
-* OpenTelemetry
-* Prometheus
-* Grafana
-* structured logging
-
-⸻
-
-🎓 Skills Demonstrated
-
-This project is designed to demonstrate:
-
-Software Engineering
-
-* Python
-* FastAPI
-* REST APIs
-* SQLAlchemy
-* PostgreSQL
-* testing
-* modular architecture
-
-AI Engineering
-
-* LLM integration
-* RAG
-* vector databases
-* embeddings
-* forecasting
-* AI agents
-* model evaluation
-
-Platform Engineering
-
-* Docker
-* Kubernetes
-* Helm
-* Terraform
-* CI/CD
-* container registries
-* cloud infrastructure
-
-Cloud Engineering
-
-* AWS / Azure / OVHcloud concepts
-* networking
-* IAM
-* storage
-* compute
-* infrastructure automation
-
-Observability
-
-* OpenTelemetry
-* Prometheus
-* Grafana
-* logs
-* metrics
-* traces
-
-Domain
-
-* Supply Chain
-* suppliers
-* purchase orders
-* risk
-* delays
-* inventory
-
-⸻
-
-👤 Author
-
-Dylan Taibi
-
-AI Platform Engineering / AI Full Stack — Portfolio Project
-
-France
-
-⸻
-
-📌 Project Status
-
-Current stage: Backend foundation + Supply Chain API
-
-Next major stage: Containerization and platform engineering
-
-[x] FastAPI
-[x] PostgreSQL
-[x] SQLAlchemy
-[x] Alembic
-[x] Suppliers API
-[x] Purchase Orders API
-[x] KPI API
-[ ] Dockerized API
-[ ] CI/CD
-[ ] AI / LLM
-[ ] RAG / pgvector
-[ ] Observability
-[ ] Kubernetes
-[ ] Helm
-[ ] Terraform
-[ ] Cloud deployment
-[ ] LLMOps
+    ↓
+Kubernetes / Helm
+    ↓
+Terraform / AWS
+    ↓
+OpenTelemetry
+    ↓
+Prometheus / Grafana / Tempo
+```
+
+The same application is used across both perspectives, demonstrating the relationship between **building AI-enabled product features** and **building the platform required to run and observe them**.
+
+---
+
+## 👤 Author
+
+**Dylan Taibi**
+
+AI Foundation · AI Platform Engineering · Full Stack Engineering
+
+Portfolio Project — France
+
+---
+
+## 📌 Project Status
+
+The core demonstrator is implemented and operational.
+
+- [x] FastAPI backend
+- [x] PostgreSQL
+- [x] SQLAlchemy
+- [x] Alembic migrations
+- [x] Suppliers API
+- [x] Purchase Orders API
+- [x] KPI API
+- [x] Redis caching
+- [x] Docker / Docker Compose
+- [x] Automated backend tests
+- [x] GitHub Actions
+- [x] PostgreSQL pgvector
+- [x] Sentence Transformer embeddings
+- [x] Semantic RAG
+- [x] Structured Supply Chain retrieval
+- [x] Business terminology glossary
+- [x] Local Llama inference with Ollama
+- [x] Hybrid AI Assistant
+- [x] React / TypeScript frontend
+- [x] Supplier search and sorting
+- [x] Platform Control Center
+- [x] OpenTelemetry
+- [x] Prometheus
+- [x] Grafana
+- [x] Tempo
+- [x] Kubernetes
+- [x] Helm
+- [x] Terraform
+- [x] AWS ECR
+- [x] AWS ECS / Fargate deployment
+
+**Next stage: portfolio documentation, architecture presentation and technical interview demonstration.**
