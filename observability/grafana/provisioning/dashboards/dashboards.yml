@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: Hybrid AI Platform
+    orgId: 1
+    folder: Hybrid AI Platform
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

@@ -80,7 +80,6 @@ services:
     networks:
       - hybrid_ai_network
 
-
   tempo:
     image: grafana/tempo:latest
     container_name: hybrid_ai_tempo
@@ -104,8 +103,11 @@ services:
       - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
+      - tempo
     networks:
       - hybrid_ai_network
 
