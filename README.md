@@ -688,7 +688,9 @@ The core demonstrator is implemented and operational.
 - [x] Hybrid AI Assistant
 - [x] React / TypeScript frontend
 - [x] Supplier search and sorting
-- [x] Platform Control Center
+- [x] Interactive Platform Architecture Control Center
+- [x] Real-time platform health monitoring
+- [x] Interactive component inspection
 - [x] OpenTelemetry
 - [x] Prometheus
 - [x] Grafana
@@ -699,4 +701,4 @@ The core demonstrator is implemented and operational.
 - [x] AWS ECR
 - [x] AWS ECS / Fargate deployment
 
-**Next stage: portfolio documentation, architecture presentation and technical interview demonstration.**
+**Next stage: architecture presentation and technical interview demonstration.**
