@@ -4,22 +4,17 @@ services:
     build: .
     container_name: hybrid_ai_api
     restart: unless-stopped
-
     ports:
       - "8000:8000"
-
     env_file:
       - .env
-
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-
     networks:
       - hybrid_ai_network
-
     healthcheck:
       test:
         [
@@ -37,21 +32,16 @@ services:
     image: pgvector/pgvector:pg15
     container_name: hybrid_ai_db
     restart: always
-
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-
     ports:
       - "5432:5432"
-
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
     networks:
       - hybrid_ai_network
-
     healthcheck:
       test:
         [
@@ -67,21 +57,62 @@ services:
     image: redis:7-alpine
     container_name: hybrid_ai_redis
     restart: unless-stopped
-
     ports:
       - "6379:6379"
-
     networks:
       - hybrid_ai_network
-
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: hybrid_ai_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+    networks:
+      - hybrid_ai_network
+
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: hybrid_ai_tempo
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    volumes:
+      - ./observability/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+      - "4318:4318"
+    networks:
+      - hybrid_ai_network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: hybrid_ai_grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - hybrid_ai_network
+
 volumes:
   postgres_data:
+  grafana_data:
+  tempo_data:
 
 networks:
   hybrid_ai_network:

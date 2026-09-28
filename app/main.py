@@ -1,4 +1,7 @@
 from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from app.observability.tracing import setup_tracing
 from datetime import datetime
 
 from app.routers.suppliers import router as suppliers_router
@@ -6,6 +9,8 @@ from app.routers.purchase_orders import router as purchase_orders_router
 from app.routers.kpis import router as kpis_router
 from app.ai.router import router as ai_router
 
+
+setup_tracing()
 
 app = FastAPI(
     title="Hybrid AI Supply Chain Platform",
@@ -37,6 +42,9 @@ def redis_health():
         "redis": "connected"
     }
 
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+FastAPIInstrumentor.instrument_app(app)
 
 # On ajoute les routers
 app.include_router(suppliers_router)

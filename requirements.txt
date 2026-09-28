@@ -10,3 +10,8 @@ anyio<4.15
 pgvector
 sentence-transformers
 requests
+prometheus-fastapi-instrumentator
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-instrumentation-fastapi
+opentelemetry-exporter-otlp
