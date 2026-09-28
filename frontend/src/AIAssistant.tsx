@@ -88,6 +88,15 @@ function AIAssistant() {
             <textarea
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault()
+
+                  if (!loading && question.trim()) {
+                    event.currentTarget.form?.requestSubmit()
+                  }
+                }
+              }}
               placeholder="Ask a supply chain question..."
               rows={5}
             />

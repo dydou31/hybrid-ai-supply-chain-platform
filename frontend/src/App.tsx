@@ -33,6 +33,10 @@ const navItems: { label: NavItem; icon: string }[] = [
 function App() {
   const [activePage, setActivePage] = useState<NavItem>('Dashboard')
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [supplierSearch, setSupplierSearch] = useState('')
+  const [supplierSort, setSupplierSort] = useState<keyof Supplier>('name')
+  const [supplierSortDirection, setSupplierSortDirection] =
+    useState<'asc' | 'desc'>('asc')
   const [suppliersAvailable, setSuppliersAvailable] = useState(false)
   const [apiHealthy, setApiHealthy] = useState(false)
   const [platformHealth, setPlatformHealth] =
@@ -101,6 +105,56 @@ function App() {
 
     loadDashboard()
   }, [])
+
+  const handleSupplierSort = (column: keyof Supplier) => {
+    if (supplierSort === column) {
+      setSupplierSortDirection((current) =>
+        current === 'asc' ? 'desc' : 'asc',
+      )
+    } else {
+      setSupplierSort(column)
+      setSupplierSortDirection('asc')
+    }
+  }
+
+  const supplierSortIcon = (column: keyof Supplier) => {
+    if (supplierSort !== column) return '↕'
+    return supplierSortDirection === 'asc' ? '↑' : '↓'
+  }
+
+  const visibleSuppliers = suppliers
+    .filter((supplier) => {
+      const search = supplierSearch.trim().toLowerCase()
+
+      if (!search) return true
+
+      return (
+        supplier.name.toLowerCase().includes(search) ||
+        supplier.country.toLowerCase().includes(search) ||
+        supplier.risk_level.toLowerCase().includes(search) ||
+        String(supplier.id).includes(search)
+      )
+    })
+    .sort((a, b) => {
+      let comparison = 0
+
+      if (supplierSort === 'blocked_stock_eur') {
+        comparison =
+          Number(a.blocked_stock_eur) - Number(b.blocked_stock_eur)
+      } else if (supplierSort === 'id') {
+        comparison = a.id - b.id
+      } else {
+        comparison = String(a[supplierSort]).localeCompare(
+          String(b[supplierSort]),
+          undefined,
+          { sensitivity: 'base' },
+        )
+      }
+
+      return supplierSortDirection === 'asc'
+        ? comparison
+        : -comparison
+    })
 
   const blockedStock = suppliers.reduce(
     (total, supplier) => total + Number(supplier.blocked_stock_eur),
@@ -379,15 +433,52 @@ function App() {
               </div>
             </div>
 
+            <div className="supplier-table-tools">
+              <input
+                type="search"
+                value={supplierSearch}
+                onChange={(event) => setSupplierSearch(event.target.value)}
+                placeholder="Search suppliers, country, risk level..."
+                aria-label="Search suppliers"
+              />
+
+              <span>
+                {visibleSuppliers.length} of {suppliers.length} suppliers
+              </span>
+            </div>
+
             <div className="card supplier-table-card">
               <div className="table-header">
-                <span>Supplier</span>
-                <span>Country</span>
-                <span>Risk Level</span>
-                <span>Blocked Stock</span>
+                <button
+                  type="button"
+                  onClick={() => handleSupplierSort('name')}
+                >
+                  Supplier {supplierSortIcon('name')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSupplierSort('country')}
+                >
+                  Country {supplierSortIcon('country')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSupplierSort('risk_level')}
+                >
+                  Risk Level {supplierSortIcon('risk_level')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSupplierSort('blocked_stock_eur')}
+                >
+                  Blocked Stock {supplierSortIcon('blocked_stock_eur')}
+                </button>
               </div>
 
-              {suppliers.map((supplier) => (
+              {visibleSuppliers.map((supplier) => (
                 <div className="supplier-row" key={supplier.id}>
                   <div className="supplier-name">
                     <div className="supplier-avatar">

@@ -156,6 +156,70 @@ def get_relevant_structured_context(question: str) -> str:
             for supplier in suppliers
         ]
 
+        # Best supplier according to available operational KPIs
+        if (
+            "fournisseur" in q
+            and any(
+                term in q
+                for term in ("meilleur", "meilleure", "best")
+            )
+        ):
+            risk_rank = {
+                "low": 0,
+                "medium": 1,
+                "high": 2,
+            }
+
+            candidates = [
+                item
+                for item in metrics
+                if item["orders"] > 0
+            ]
+
+            if candidates:
+                best = min(
+                    candidates,
+                    key=lambda item: (
+                        risk_rank.get(
+                            item["supplier"].risk_level,
+                            99,
+                        ),
+                        item["delay_rate"],
+                        item["average_delay"],
+                        item["blocked_stock"],
+                    ),
+                )
+
+                supplier = best["supplier"]
+                on_time_rate = 100 - best["delay_rate"]
+
+                lines.append(
+                    "Best supplier according to available operational KPIs:"
+                )
+                lines.append(f"Supplier: {supplier.name}")
+                lines.append(f"Risk level: {supplier.risk_level}")
+                lines.append(
+                    f"On-time delivery rate: {on_time_rate:.2f}%"
+                )
+                lines.append(
+                    f"Delayed purchase orders: "
+                    f"{best['delayed']}/{best['orders']}"
+                )
+                lines.append(
+                    f"Average delay days: "
+                    f"{best['average_delay']:.2f}"
+                )
+                lines.append(
+                    f"Blocked stock EUR: "
+                    f"{best['blocked_stock']}"
+                )
+                lines.append(
+                    "Ranking criteria, in order: risk level, "
+                    "delay rate, average delay, blocked stock."
+                )
+
+                return "\n".join(lines)
+
         # Multicriteria analysis:
         # high risk + delays + blocked stock
         if (
