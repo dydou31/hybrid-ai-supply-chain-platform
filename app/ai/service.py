@@ -2,6 +2,7 @@ import requests
 from opentelemetry import trace
 
 from app.ai.retrieval import semantic_search
+from app.ai.structured_context import get_structured_context
 from app.observability.metrics import (
     RAG_REQUESTS_TOTAL,
     RAG_ERRORS_TOTAL,
@@ -20,19 +21,49 @@ def ask_rag(query: str, limit: int = 3) -> dict:
     try:
         with RAG_REQUEST_DURATION_SECONDS.time():
             documents = semantic_search(query, limit=limit)
+            structured_context = get_structured_context()
 
-            context = "\n\n".join(
+            rag_context = "\n\n".join(
                 f"[{doc['title']}]\n{doc['content']}"
                 for doc in documents
             )
 
+            if not rag_context:
+                rag_context = "No relevant knowledge documents found."
+
             prompt = f"""You are a Supply Chain AI assistant.
 
-Answer the question using only the context below.
-If the answer is not in the context, say that you do not have enough information.
+Answer the user's question using only the supplied data.
 
-CONTEXT:
-{context}
+You have two information sources:
+
+1. STRUCTURED DATA
+Live operational data retrieved from PostgreSQL.
+
+2. KNOWLEDGE DOCUMENTS
+Relevant unstructured documents retrieved with semantic search
+from pgvector.
+
+Rules:
+- Use structured data for factual questions about suppliers,
+  risk levels, blocked stock and purchase orders.
+- Use knowledge documents when they contain relevant operational
+  information.
+- Combine both sources when useful.
+- Do not invent facts.
+- If the supplied data does not contain the answer, say that you
+  do not have enough information.
+- Always answer in the same language as the user's question.
+- If the user asks in French, answer entirely in French.
+- If the user asks in English, answer entirely in English.
+- Do not translate or explain the user's question unless explicitly asked.
+- Be concise and precise.
+
+STRUCTURED DATA:
+{structured_context}
+
+KNOWLEDGE DOCUMENTS:
+{rag_context}
 
 QUESTION:
 {query}
@@ -55,6 +86,21 @@ ANSWER:
 
                 response.raise_for_status()
 
+            data_sources = [
+                {
+                    "type": "postgresql",
+                    "label": "Structured supplier data",
+                }
+            ]
+
+            if documents:
+                data_sources.append(
+                    {
+                        "type": "pgvector",
+                        "label": "Semantic knowledge documents",
+                    }
+                )
+
             return {
                 "answer": response.json()["response"].strip(),
                 "sources": [
@@ -66,6 +112,7 @@ ANSWER:
                     }
                     for doc in documents
                 ],
+                "data_sources": data_sources,
             }
 
     except Exception:
