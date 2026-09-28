@@ -2,7 +2,8 @@ import requests
 from opentelemetry import trace
 
 from app.ai.retrieval import semantic_search
-from app.ai.structured_context import get_structured_context
+from app.ai.structured_retrieval import get_relevant_structured_context
+from app.ai.business_glossary import BUSINESS_GLOSSARY
 from app.observability.metrics import (
     RAG_REQUESTS_TOTAL,
     RAG_ERRORS_TOTAL,
@@ -21,7 +22,7 @@ def ask_rag(query: str, limit: int = 3) -> dict:
     try:
         with RAG_REQUEST_DURATION_SECONDS.time():
             documents = semantic_search(query, limit=limit)
-            structured_context = get_structured_context()
+            structured_context = get_relevant_structured_context(query)
 
             rag_context = "\n\n".join(
                 f"[{doc['title']}]\n{doc['content']}"
@@ -50,7 +51,16 @@ Rules:
 - Use knowledge documents when they contain relevant operational
   information.
 - Combine both sources when useful.
-- Do not invent facts.
+- Do not invent facts, labels, interpretations, or qualifications
+  that are not explicitly present in the supplied data.
+- Preserve numerical values exactly as provided by structured data.
+- When structured data contains a ranking, preserve its exact order.
+- When the user asks for a ranking or list, return every item supplied
+  for that ranking; do not omit, merge, or add items.
+- Do not reinterpret business labels. For example, "high risk" means
+  high risk and must not be transformed into "high value" or another label.
+- Do not claim that one supplier represents a percentage of all delays
+  unless that percentage is explicitly supplied in the structured data.
 - If the supplied data does not contain the answer, say that you
   do not have enough information.
 - Always answer in the same language as the user's question.
@@ -58,6 +68,9 @@ Rules:
 - If the user asks in English, answer entirely in English.
 - Do not translate or explain the user's question unless explicitly asked.
 - Be concise and precise.
+
+BUSINESS GLOSSARY:
+{BUSINESS_GLOSSARY}
 
 STRUCTURED DATA:
 {structured_context}
