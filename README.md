@@ -40,7 +40,7 @@ This project implements a **Hybrid AI architecture** where deterministic operati
              ▼                   ▼                   ▼
         PostgreSQL             Redis             Hybrid AI
              │                                       │
-      SQLAlchemy/Alembic                ┌─────────────┴─────────────┐
+      SQLAlchemy/Alembic               ┌-────────────┴─────────────┐
                                        │                           │
                                        ▼                           ▼
                             Structured Retrieval                  RAG
