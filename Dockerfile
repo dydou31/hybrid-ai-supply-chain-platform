@@ -7,6 +7,8 @@ ENV PYTHONUNBUFFERED=1
 # Répertoire de travail
 WORKDIR /app
 
+ENV PYTHONPATH=/app
+
 ENV HF_HOME=/tmp/huggingface
 ENV TRANSFORMERS_CACHE=/tmp/huggingface
 
