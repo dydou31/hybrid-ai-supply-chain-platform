@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import './App.css'
 import AIAssistant from './AIAssistant'
 import Platform from './Platform'
+import { API_URL } from './config'
 
 type NavItem = 'Dashboard' | 'Suppliers' | 'AI Assistant' | 'Platform'
 
@@ -52,10 +53,10 @@ function App() {
         platformResult,
         knowledgeResult,
       ] = await Promise.allSettled([
-        fetch('http://localhost:8000/health'),
-        fetch('http://localhost:8000/suppliers'),
-        fetch('http://localhost:8000/health/platform'),
-        fetch('http://localhost:8000/ai/knowledge/count'),
+        fetch(`${API_URL}/health`),
+        fetch(`${API_URL}/suppliers`),
+        fetch(`${API_URL}/health/platform`),
+        fetch(`${API_URL}/ai/knowledge/count`),
       ])
 
       if (

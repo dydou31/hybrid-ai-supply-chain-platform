@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { API_URL } from './config'
 
 type Source = {
   id: number
@@ -37,7 +38,7 @@ function AIAssistant() {
     setResponse(null)
 
     try {
-      const apiResponse = await fetch('http://localhost:8000/ai/ask', {
+      const apiResponse = await fetch(`${API_URL}/ai/ask`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

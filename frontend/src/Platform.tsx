@@ -14,6 +14,7 @@ import {
 import { FaAws, FaRobot } from 'react-icons/fa'
 import { FaGithub, FaProjectDiagram } from 'react-icons/fa'
 import { VscPulse } from 'react-icons/vsc'
+import { API_URL } from './config'
 
 type ServiceHealth = {
   status: string
@@ -108,7 +109,7 @@ function Platform() {
 
   const loadHealth = async () => {
     try {
-      const response = await fetch('http://localhost:8000/health/platform')
+      const response = await fetch(`${API_URL}/health/platform`)
       if (!response.ok) throw new Error('Platform health request failed')
 
       const data: PlatformHealth = await response.json()
