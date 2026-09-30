@@ -521,7 +521,17 @@ hybrid-ai-supply-chain-platform/
 
 ## 🚀 Local Development
 
-### Start the platform
+### 1. Configure the environment
+
+Create the local environment file from the provided example:
+
+```bash
+cp .env.example .env
+```
+
+### 2. Start the platform
+
+Build and start the Docker Compose services:
 
 ```bash
 docker compose up -d --build
@@ -533,21 +543,45 @@ Check running services:
 docker compose ps
 ```
 
-### Start Ollama
+### 3. Initialize the database
 
-Make sure Ollama is available locally with the expected model:
+Apply the database migrations:
+
+```bash
+docker compose exec api alembic upgrade head
+```
+
+Seed the demonstration dataset:
+
+```bash
+docker compose exec -T api python - < scripts/seed_suppliers.py
+docker compose exec -T api python - < scripts/seed_purchase_orders.py
+docker compose exec -T api python - < scripts/seed_knowledge.py
+```
+
+The seed scripts are designed to be safely re-run without duplicating the demonstration data.
+
+### 4. Start the local LLM
+
+The AI Assistant uses Ollama running on the host machine.
+
+Install Ollama if needed, then pull the expected model:
 
 ```bash
 ollama pull llama3.2:3b
 ```
 
-### Start the frontend
+Make sure Ollama is running before using the AI Assistant.
+
+### 5. Start the frontend
 
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+
+The React frontend is then available through the local Vite development server.
 
 ### Run backend tests
 
