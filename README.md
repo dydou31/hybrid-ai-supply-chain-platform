@@ -150,8 +150,8 @@ The glossary is extensible and helps bridge informal business language and backe
 The local environment contains a deterministic Supply Chain dataset designed for reproducible demonstrations.
 
 ```text
-104 suppliers
-501 purchase orders
+100 suppliers
+500 purchase orders
 Multiple countries
 Low / medium / high supplier risk
 Blocked-stock values
@@ -550,6 +550,14 @@ Apply the database migrations:
 ```bash
 docker compose exec api alembic upgrade head
 ```
+
+### AI model dependency
+
+The RAG knowledge seed uses the `sentence-transformers/all-MiniLM-L6-v2` embedding model.
+
+On the first run, the model is downloaded from Hugging Face and then cached locally. Therefore, access to `huggingface.co` is required unless the model is already cached or provided through an approved internal model registry.
+
+In corporate environments, access to public model repositories may be restricted by network or security policies.
 
 Seed the demonstration dataset:
 
