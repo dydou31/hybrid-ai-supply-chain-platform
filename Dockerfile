@@ -22,6 +22,9 @@ COPY app ./app
 COPY alembic.ini .
 COPY alembic ./alembic
 
+# Copie des scripts d'initialisation
+COPY scripts ./scripts
+
 # Utilisateur non-root pour la sécurité
 RUN addgroup --system app && \
     adduser --system --ingroup app app && \

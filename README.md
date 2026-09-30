@@ -554,9 +554,9 @@ docker compose exec api alembic upgrade head
 Seed the demonstration dataset:
 
 ```bash
-docker compose exec -T api python - < scripts/seed_suppliers.py
-docker compose exec -T api python - < scripts/seed_purchase_orders.py
-docker compose exec -T api python - < scripts/seed_knowledge.py
+docker compose exec api python scripts/seed_suppliers.py
+docker compose exec api python scripts/seed_purchase_orders.py
+docker compose exec api python scripts/seed_knowledge.py
 ```
 
 The seed scripts are designed to be safely re-run without duplicating the demonstration data.
