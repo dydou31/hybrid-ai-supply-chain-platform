@@ -32,7 +32,20 @@ const navItems: { label: NavItem; icon: string }[] = [
 ]
 
 function App() {
-  const [activePage, setActivePage] = useState<NavItem>('Dashboard')
+  const getPageFromPath = (): NavItem => {
+  switch (window.location.pathname) {
+    case '/suppliers':
+      return 'Suppliers'
+    case '/ai-assistant':
+      return 'AI Assistant'
+    case '/platform':
+      return 'Platform'
+    default:
+      return 'Dashboard'
+  }
+}
+
+const [activePage, setActivePage] = useState<NavItem>(getPageFromPath)
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [supplierSearch, setSupplierSearch] = useState('')
   const [supplierSort, setSupplierSort] = useState<keyof Supplier>('name')
@@ -44,6 +57,30 @@ function App() {
     useState<PlatformHealth | null>(null)
   const [knowledgeCount, setKnowledgeCount] = useState(0)
   const [knowledgeAvailable, setKnowledgeAvailable] = useState(false)
+
+  const navigateTo = (page: NavItem) => {
+  const paths: Record<NavItem, string> = {
+    Dashboard: '/',
+    Suppliers: '/suppliers',
+    'AI Assistant': '/ai-assistant',
+    Platform: '/platform',
+  }
+
+  window.history.pushState({}, '', paths[page])
+  setActivePage(page)
+}
+
+useEffect(() => {
+  const handlePopState = () => {
+    setActivePage(getPageFromPath())
+  }
+
+  window.addEventListener('popstate', handlePopState)
+
+  return () => {
+    window.removeEventListener('popstate', handlePopState)
+  }
+}, [])
 
   useEffect(() => {
     const loadDashboard = async () => {
@@ -185,7 +222,7 @@ function App() {
               className={
                 activePage === item.label ? 'nav-item active' : 'nav-item'
               }
-              onClick={() => setActivePage(item.label)}
+              onClick={() => navigateTo(item.label)}
             >
               <span className="nav-icon">{item.icon}</span>
               {item.label}
@@ -230,7 +267,7 @@ function App() {
                 </p>
               </div>
 
-              <button onClick={() => setActivePage('AI Assistant')}>
+              <button onClick={() => navigateTo('AI Assistant')}>
                 Ask AI Assistant →
               </button>
             </section>

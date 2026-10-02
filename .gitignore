@@ -22,3 +22,6 @@ venv/
 *.tfstate.*
 
 .DS_Store
+
+# WebAuthn / local credentials
+control_agent/.webauthn_credential.json

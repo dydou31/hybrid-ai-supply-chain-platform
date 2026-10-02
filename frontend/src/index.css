@@ -628,3 +628,245 @@ textarea {
     top: auto !important;
   }
 }
+
+/* =========================================================
+   CONTROL CENTER — SERVICE ADMINISTRATION
+   ========================================================= */
+
+.inspector-control {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.inspector-control > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inspector-control span {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.inspector-control small {
+  opacity: 0.65;
+  font-size: 0.72rem;
+}
+
+.inspector-control button {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 10px 15px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.inspector-control button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.inspector-control button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+
+/* ===== Authentication modal ===== */
+
+.control-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.control-modal {
+  width: min(460px, 100%);
+  padding: 28px;
+  border-radius: 18px;
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.control-modal h3 {
+  margin: 6px 0 10px;
+  font-size: 1.4rem;
+}
+
+.control-modal > p:not(.eyebrow) {
+  margin-bottom: 22px;
+  opacity: 0.72;
+  line-height: 1.5;
+}
+
+.control-modal label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.control-modal input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 10px;
+  outline: none;
+  font: inherit;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.control-modal input:focus {
+  border-color: rgba(96, 165, 250, 0.8);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.control-modal-error {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  border-radius: 9px;
+  background: rgba(239, 68, 68, 0.08);
+  font-size: 0.78rem;
+}
+
+.control-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.control-modal-actions button {
+  padding: 10px 14px;
+  border-radius: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.control-modal-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.control-auth-options {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+  font-size: 0.7rem;
+  opacity: 0.6;
+}
+
+
+/* ===== Transition states ===== */
+
+.inspector-status.starting,
+.inspector-status.stopping {
+  animation: service-status-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes service-status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.55;
+  }
+}
+
+
+/* ===== Responsive ===== */
+
+@media (max-width: 600px) {
+  .inspector-control {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .inspector-control button {
+    width: 100%;
+  }
+
+  .control-modal {
+    padding: 22px;
+  }
+
+  .control-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .control-modal-actions button {
+    width: 100%;
+  }
+
+  .control-auth-options {
+    flex-direction: column;
+  }
+}
+
+/* ===== Service ON / OFF buttons ===== */
+
+.inspector-control .service-control-button.service-control-on {
+  background: rgba(34, 197, 94, 0.18) !important;
+  border: 1px solid rgba(34, 197, 94, 0.7) !important;
+  color: #4ade80 !important;
+  box-shadow: 0 0 18px rgba(34, 197, 94, 0.15);
+}
+
+.inspector-control .service-control-button.service-control-on:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.28) !important;
+  border-color: #4ade80 !important;
+  box-shadow: 0 0 24px rgba(34, 197, 94, 0.25);
+}
+
+.inspector-control .service-control-button.service-control-off {
+  background: rgba(239, 68, 68, 0.18) !important;
+  border: 1px solid rgba(239, 68, 68, 0.7) !important;
+  color: #f87171 !important;
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.15);
+}
+
+.inspector-control .service-control-button.service-control-off:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.28) !important;
+  border-color: #f87171 !important;
+  box-shadow: 0 0 24px rgba(239, 68, 68, 0.25);
+}
+
+.inspector-control .service-control-button.service-control-transition {
+  background: rgba(245, 158, 11, 0.18) !important;
+  border: 1px solid rgba(245, 158, 11, 0.7) !important;
+  color: #fbbf24 !important;
+}

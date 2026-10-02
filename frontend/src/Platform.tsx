@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from "react";
 import {
   SiDocker,
   SiFastapi,
@@ -10,76 +10,206 @@ import {
   SiReact,
   SiRedis,
   SiTerraform,
-} from 'react-icons/si'
-import { FaAws, FaRobot } from 'react-icons/fa'
-import { FaGithub, FaProjectDiagram } from 'react-icons/fa'
-import { VscPulse } from 'react-icons/vsc'
-import { API_URL } from './config'
+} from "react-icons/si";
+import { FaAws, FaRobot, FaGithub, FaProjectDiagram } from "react-icons/fa";
+import { VscPulse } from "react-icons/vsc";
+import { API_URL } from "./config";
 
 type ServiceHealth = {
-  status: string
-  postgres?: string
-  pgvector?: string
-  ollama?: string
-  model?: string
-  model_ready?: boolean
-}
+  status: string;
+  postgres?: string;
+  pgvector?: string;
+  ollama?: string;
+  model?: string;
+  model_ready?: boolean;
+};
 
 type PlatformHealth = {
-  status: string
-  services: Record<string, ServiceHealth>
+  status: string;
+  services: Record<string, ServiceHealth>;
+};
+
+type DockerServiceStatus = {
+  state: string;
+  health: string;
+  status: string;
+  running: boolean;
+};
+
+type DockerServicesStatus = {
+  services: Record<string, DockerServiceStatus>;
+};
+
+type NodeStatus = "live" | "down" | "starting" | "stopping" | "architecture";
+
+type ServiceAction = "start" | "stop";
+
+type PasskeyStatus = {
+  configured: boolean;
+  rp_id: string;
+};
+
+const CONTROL_AGENT_URL = "http://127.0.0.1:8100";
+
+function base64urlToUint8Array(value: string) {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const binary = window.atob(base64);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
-type NodeStatus = 'live' | 'down' | 'architecture'
+function arrayBufferToBase64url(value: ArrayBuffer) {
+  const bytes = new Uint8Array(value);
+  let binary = "";
+
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+
+  return window
+    .btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function prepareRegistrationOptions(
+  publicKey: any,
+): PublicKeyCredentialCreationOptions {
+  return {
+    ...publicKey,
+    challenge: base64urlToUint8Array(publicKey.challenge),
+    user: { ...publicKey.user, id: base64urlToUint8Array(publicKey.user.id) },
+    excludeCredentials: (publicKey.excludeCredentials ?? []).map(
+      (credential: any) => ({
+        ...credential,
+        id: base64urlToUint8Array(credential.id),
+      }),
+    ),
+  };
+}
+
+function prepareAuthenticationOptions(
+  publicKey: any,
+): PublicKeyCredentialRequestOptions {
+  return {
+    ...publicKey,
+    challenge: base64urlToUint8Array(publicKey.challenge),
+    allowCredentials: (publicKey.allowCredentials ?? []).map(
+      (credential: any) => ({
+        ...credential,
+        id: base64urlToUint8Array(credential.id),
+      }),
+    ),
+  };
+}
+
+function registrationCredentialToJSON(credential: PublicKeyCredential) {
+  const response = credential.response as AuthenticatorAttestationResponse;
+  return {
+    id: credential.id,
+    rawId: arrayBufferToBase64url(credential.rawId),
+    type: credential.type,
+    response: {
+      clientDataJSON: arrayBufferToBase64url(response.clientDataJSON),
+      attestationObject: arrayBufferToBase64url(response.attestationObject),
+      transports:
+        typeof response.getTransports === "function"
+          ? response.getTransports()
+          : [],
+    },
+    clientExtensionResults: credential.getClientExtensionResults(),
+    authenticatorAttachment: credential.authenticatorAttachment,
+  };
+}
+
+function authenticationCredentialToJSON(credential: PublicKeyCredential) {
+  const response = credential.response as AuthenticatorAssertionResponse;
+  return {
+    id: credential.id,
+    rawId: arrayBufferToBase64url(credential.rawId),
+    type: credential.type,
+    response: {
+      clientDataJSON: arrayBufferToBase64url(response.clientDataJSON),
+      authenticatorData: arrayBufferToBase64url(response.authenticatorData),
+      signature: arrayBufferToBase64url(response.signature),
+      userHandle: response.userHandle
+        ? arrayBufferToBase64url(response.userHandle)
+        : null,
+    },
+    clientExtensionResults: credential.getClientExtensionResults(),
+    authenticatorAttachment: credential.authenticatorAttachment,
+  };
+}
+
+type ControllableService =
+  "api" | "db" | "redis" | "prometheus" | "tempo" | "grafana";
 
 type ArchitectureNode = {
-  id: string
-  name: string
-  subtitle: string
-  group: 'application' | 'data' | 'ai' | 'delivery' | 'observability'
-  healthKey?: string
-  icon: React.ReactNode
-  description: string
-}
+  id: string;
+  name: string;
+  subtitle: string;
+  group: "application" | "data" | "ai" | "delivery" | "observability";
+  healthKey?: string;
+  icon: React.ReactNode;
+  description: string;
+};
 
 type ArchitectureNodeProps = {
-  id: string
-  nodes: ArchitectureNode[]
-  platform: PlatformHealth | null
-  selected: string
-  onSelect: (id: string) => void
-}
+  id: string;
+  nodes: ArchitectureNode[];
+  platform: PlatformHealth | null;
+  dockerServices: DockerServicesStatus | null;
+  selected: string;
+  onSelect: (id: string) => void;
+};
 
 function ArchitectureNodeCard({
   id,
   nodes,
   platform,
+  dockerServices,
   selected,
   onSelect,
 }: ArchitectureNodeProps) {
-  const node = nodes.find((item) => item.id === id)
-  if (!node) return null
+  const node = nodes.find((item) => item.id === id);
 
-  let status: NodeStatus
+  if (!node) return null;
 
-  if (node.id === 'fastapi') {
-    status = platform ? 'live' : 'down'
+  let status: NodeStatus;
+
+  const dockerServiceByNode: Partial<Record<string, string>> = {
+    fastapi: "api",
+    postgres: "db",
+    pgvector: "pgvector",
+    redis: "redis",
+    ollama: "ollama",
+    prometheus: "prometheus",
+    tempo: "tempo",
+    grafana: "grafana",
+  };
+
+  const dockerService = dockerServiceByNode[node.id];
+  const dockerState = dockerService
+    ? dockerServices?.services?.[dockerService]
+    : undefined;
+
+  if (dockerState) {
+    status = dockerState.running ? "live" : "down";
   } else if (!node.healthKey) {
-    status = 'architecture'
+    status = "architecture";
   } else if (!platform) {
-    status = 'down'
+    status = "down";
   } else {
     status =
-      platform.services[node.healthKey]?.status === 'healthy'
-        ? 'live'
-        : 'down'
+      platform.services[node.healthKey]?.status === "healthy" ? "live" : "down";
   }
 
   return (
     <button
       type="button"
       className={`architecture-node architecture-${status} ${
-        selected === id ? 'architecture-selected' : ''
+        selected === id ? "architecture-selected" : ""
       }`}
       onClick={() => onSelect(id)}
     >
@@ -92,222 +222,503 @@ function ArchitectureNodeCard({
 
       <span className={`architecture-node-status ${status}`}>
         <span className="status-dot" />
-        {status === 'live'
-          ? 'Live'
-          : status === 'down'
-            ? 'Unavailable'
-            : 'Architecture'}
+
+        {status === "live"
+          ? "Live"
+          : status === "down"
+            ? "Unavailable"
+            : "Architecture"}
       </span>
     </button>
-  )
+  );
 }
 
 function Platform() {
-  const [platform, setPlatform] = useState<PlatformHealth | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState('fastapi')
+  const [platform, setPlatform] = useState<PlatformHealth | null>(null);
+  const [dockerServices, setDockerServices] =
+    useState<DockerServicesStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState("fastapi");
+
+  const [serviceTransitions, setServiceTransitions] = useState<
+    Partial<Record<ControllableService, "starting" | "stopping">>
+  >({});
+
+  const [pendingAction, setPendingAction] = useState<{
+    service: ControllableService;
+    action: ServiceAction;
+  } | null>(null);
+
+  const [adminPassword, setAdminPassword] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [passkeyStatus, setPasskeyStatus] = useState<PasskeyStatus | null>(
+    null,
+  );
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+
+  const loadPasskeyStatus = async () => {
+    try {
+      const response = await fetch(`${CONTROL_AGENT_URL}/webauthn/status`);
+      if (!response.ok) throw new Error("Passkey status request failed");
+      const data: PasskeyStatus = await response.json();
+      setPasskeyStatus(data);
+    } catch {
+      setPasskeyStatus(null);
+    }
+  };
 
   const loadHealth = async () => {
     try {
-      const response = await fetch(`${API_URL}/health/platform`)
-      if (!response.ok) throw new Error('Platform health request failed')
+      const response = await fetch(`${API_URL}/health/platform`);
 
-      const data: PlatformHealth = await response.json()
-      setPlatform(data)
+      if (!response.ok) {
+        throw new Error("Platform health request failed");
+      }
+
+      const data: PlatformHealth = await response.json();
+      setPlatform(data);
     } catch {
-      setPlatform(null)
+      setPlatform(null);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
+
+  const loadDockerStatus = async () => {
+    try {
+      const response = await fetch("http://127.0.0.1:8100/services/status");
+
+      if (!response.ok) {
+        throw new Error("Docker service status request failed");
+      }
+
+      const data: DockerServicesStatus = await response.json();
+      setDockerServices(data);
+    } catch {
+      setDockerServices(null);
+    }
+  };
 
   useEffect(() => {
-    loadHealth()
-    const interval = window.setInterval(loadHealth, 10000)
-    return () => window.clearInterval(interval)
-  }, [])
+    loadHealth();
+    loadDockerStatus();
+    loadPasskeyStatus();
+
+    const healthInterval = window.setInterval(loadHealth, 10000);
+    const dockerInterval = window.setInterval(loadDockerStatus, 1000);
+
+    return () => {
+      window.clearInterval(healthInterval);
+      window.clearInterval(dockerInterval);
+    };
+  }, []);
+
+  const executeServiceAction = async () => {
+    if (!pendingAction || !adminPassword) return;
+
+    const { service, action } = pendingAction;
+
+    const transition = action === "start" ? "starting" : "stopping";
+
+    setActionError("");
+
+    setServiceTransitions((current) => ({
+      ...current,
+      [service]: transition,
+    }));
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8100/services/${service}/${action}`,
+        {
+          method: "POST",
+          headers: {
+            "X-Admin-Password": adminPassword,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error("Invalid administrator password");
+        }
+
+        throw new Error("Service operation failed");
+      }
+
+      setPendingAction(null);
+      setAdminPassword("");
+
+      await new Promise((resolve) => window.setTimeout(resolve, 1000));
+
+      await loadHealth();
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Service operation failed",
+      );
+    } finally {
+      setServiceTransitions((current) => {
+        const next = { ...current };
+
+        delete next[service];
+
+        return next;
+      });
+    }
+  };
+
+  const setupPasskey = async () => {
+    if (!adminPassword || passkeyBusy) return;
+    if (!window.PublicKeyCredential || !navigator.credentials) {
+      setActionError("WebAuthn is not supported by this browser");
+      return;
+    }
+    setPasskeyBusy(true);
+    setActionError("");
+    try {
+      const optionsResponse = await fetch(
+        `${CONTROL_AGENT_URL}/webauthn/register/options`,
+        {
+          method: "POST",
+          headers: { "X-Admin-Password": adminPassword },
+        },
+      );
+      if (!optionsResponse.ok) {
+        if (optionsResponse.status === 401)
+          throw new Error("Invalid administrator password");
+        const errorData = await optionsResponse.json().catch(() => null);
+        throw new Error(errorData?.detail ?? "Unable to start Touch ID setup");
+      }
+      const optionsData = await optionsResponse.json();
+      const credential = (await navigator.credentials.create({
+        publicKey: prepareRegistrationOptions(optionsData.publicKey),
+      })) as PublicKeyCredential | null;
+      if (!credential) throw new Error("Touch ID setup was cancelled");
+      const verifyResponse = await fetch(
+        `${CONTROL_AGENT_URL}/webauthn/register/verify`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Admin-Password": adminPassword,
+          },
+          body: JSON.stringify({
+            request_id: optionsData.request_id,
+            credential: registrationCredentialToJSON(credential),
+          }),
+        },
+      );
+      if (!verifyResponse.ok) {
+        const errorData = await verifyResponse.json().catch(() => null);
+        throw new Error(errorData?.detail ?? "Touch ID setup failed");
+      }
+      await loadPasskeyStatus();
+      setAdminPassword("");
+      setActionError("");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "NotAllowedError") {
+        setActionError("Touch ID / Passkey setup was cancelled");
+      } else {
+        setActionError(
+          error instanceof Error ? error.message : "Touch ID setup failed",
+        );
+      }
+    } finally {
+      setPasskeyBusy(false);
+    }
+  };
+
+  const executePasskeyAction = async () => {
+    if (!pendingAction || passkeyBusy) return;
+    if (!window.PublicKeyCredential || !navigator.credentials) {
+      setActionError("WebAuthn is not supported by this browser");
+      return;
+    }
+    const { service, action } = pendingAction;
+    const transition = action === "start" ? "starting" : "stopping";
+    setPasskeyBusy(true);
+    setActionError("");
+    try {
+      const optionsResponse = await fetch(
+        `${CONTROL_AGENT_URL}/webauthn/authenticate/options`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ service, action }),
+        },
+      );
+      if (!optionsResponse.ok) {
+        const errorData = await optionsResponse.json().catch(() => null);
+        throw new Error(
+          errorData?.detail ?? "Unable to start Touch ID authentication",
+        );
+      }
+      const optionsData = await optionsResponse.json();
+      const credential = (await navigator.credentials.get({
+        publicKey: prepareAuthenticationOptions(optionsData.publicKey),
+      })) as PublicKeyCredential | null;
+      if (!credential) throw new Error("Touch ID authentication was cancelled");
+      setServiceTransitions((current) => ({
+        ...current,
+        [service]: transition,
+      }));
+      const verifyResponse = await fetch(
+        `${CONTROL_AGENT_URL}/webauthn/authenticate/verify`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            request_id: optionsData.request_id,
+            credential: authenticationCredentialToJSON(credential),
+          }),
+        },
+      );
+      if (!verifyResponse.ok) {
+        const errorData = await verifyResponse.json().catch(() => null);
+        throw new Error(errorData?.detail ?? "Touch ID authentication failed");
+      }
+      setPendingAction(null);
+      setAdminPassword("");
+      await new Promise((resolve) => window.setTimeout(resolve, 1000));
+      await Promise.all([loadHealth(), loadDockerStatus()]);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "NotAllowedError") {
+        setActionError("Touch ID / Passkey authentication was cancelled");
+      } else {
+        setActionError(
+          error instanceof Error
+            ? error.message
+            : "Touch ID authentication failed",
+        );
+      }
+    } finally {
+      setServiceTransitions((current) => {
+        const next = { ...current };
+        delete next[service];
+        return next;
+      });
+      setPasskeyBusy(false);
+    }
+  };
 
   const nodes: ArchitectureNode[] = [
     {
-      id: 'react',
-      name: 'React',
-      subtitle: 'TypeScript + Vite',
-      group: 'application',
+      id: "react",
+      name: "React",
+      subtitle: "TypeScript + Vite",
+      group: "application",
       icon: <SiReact />,
-      description: 'Interactive frontend for dashboards, suppliers, AI and platform operations.',
+      description:
+        "Interactive frontend for dashboards, suppliers, AI and platform operations.",
     },
     {
-      id: 'fastapi',
-      name: 'FastAPI',
-      subtitle: 'REST API',
-      group: 'application',
+      id: "fastapi",
+      name: "FastAPI",
+      subtitle: "REST API",
+      group: "application",
       icon: <SiFastapi />,
-      description: 'Core backend exposing business, AI and platform health APIs.',
+      description:
+        "Core backend exposing business, AI and platform health APIs.",
     },
     {
-      id: 'postgres',
-      name: 'PostgreSQL',
-      subtitle: 'Operational data',
-      group: 'data',
-      healthKey: 'postgres',
+      id: "postgres",
+      name: "PostgreSQL",
+      subtitle: "Operational data",
+      group: "data",
+      healthKey: "postgres",
       icon: <SiPostgresql />,
-      description: 'Primary relational database for suppliers, purchase orders and application data.',
+      description:
+        "Primary relational database for suppliers, purchase orders and application data.",
     },
     {
-      id: 'pgvector',
-      name: 'pgvector',
-      subtitle: 'Vector storage',
-      group: 'ai',
-      healthKey: 'postgres',
+      id: "pgvector",
+      name: "pgvector",
+      subtitle: "Vector storage",
+      group: "ai",
+      healthKey: "postgres",
       icon: <FaProjectDiagram />,
-      description: 'PostgreSQL vector extension used for semantic knowledge retrieval.',
+      description:
+        "PostgreSQL vector extension used for semantic knowledge retrieval.",
     },
     {
-      id: 'redis',
-      name: 'Redis',
-      subtitle: 'Cache',
-      group: 'data',
-      healthKey: 'redis',
+      id: "redis",
+      name: "Redis",
+      subtitle: "Cache",
+      group: "data",
+      healthKey: "redis",
       icon: <SiRedis />,
-      description: 'Low-latency cache and fast data access layer.',
+      description: "Low-latency cache and fast data access layer.",
     },
     {
-      id: 'hybrid-ai',
-      name: 'Hybrid AI',
-      subtitle: 'Structured + RAG',
-      group: 'ai',
+      id: "hybrid-ai",
+      name: "Hybrid AI",
+      subtitle: "Structured + RAG",
+      group: "ai",
       icon: <FaProjectDiagram />,
-      description: 'Combines structured supply-chain retrieval with semantic RAG context.',
+      description:
+        "Combines structured supply-chain retrieval with semantic RAG context.",
     },
     {
-      id: 'ollama',
-      name: 'Ollama / Llama',
-      subtitle: 'Local inference',
-      group: 'ai',
-      healthKey: 'ollama',
+      id: "ollama",
+      name: "Ollama / Llama",
+      subtitle: "Local inference",
+      group: "ai",
+      healthKey: "ollama",
       icon: <FaRobot />,
-      description: 'Local LLM inference layer running the Llama model used by the AI Assistant.',
+      description:
+        "Local LLM inference layer running the Llama model used by the AI Assistant.",
     },
-
     {
-      id: 'github',
-      name: 'GitHub Actions',
-      subtitle: 'CI/CD',
-      group: 'delivery',
+      id: "github",
+      name: "GitHub Actions",
+      subtitle: "CI/CD",
+      group: "delivery",
       icon: <FaGithub />,
-      description: 'Continuous integration pipeline validating the project.',
+      description: "Continuous integration pipeline validating the project.",
     },
     {
-      id: 'docker',
-      name: 'Docker',
-      subtitle: 'Containers',
-      group: 'delivery',
+      id: "docker",
+      name: "Docker",
+      subtitle: "Containers",
+      group: "delivery",
       icon: <SiDocker />,
-      description: 'Containerization of the application and supporting services.',
+      description:
+        "Containerization of the application and supporting services.",
     },
     {
-      id: 'kubernetes',
-      name: 'Kubernetes',
-      subtitle: 'Orchestration',
-      group: 'delivery',
+      id: "kubernetes",
+      name: "Kubernetes",
+      subtitle: "Orchestration",
+      group: "delivery",
       icon: <SiKubernetes />,
-      description: 'Container orchestration layer demonstrated locally with Kubernetes.',
+      description:
+        "Container orchestration layer demonstrated locally with Kubernetes.",
     },
     {
-      id: 'helm',
-      name: 'Helm',
-      subtitle: 'K8s packaging',
-      group: 'delivery',
+      id: "helm",
+      name: "Helm",
+      subtitle: "K8s packaging",
+      group: "delivery",
       icon: <SiHelm />,
-      description: 'Reusable Kubernetes deployment configuration.',
+      description: "Reusable Kubernetes deployment configuration.",
     },
     {
-      id: 'terraform',
-      name: 'Terraform',
-      subtitle: 'Infrastructure as Code',
-      group: 'delivery',
+      id: "terraform",
+      name: "Terraform",
+      subtitle: "Infrastructure as Code",
+      group: "delivery",
       icon: <SiTerraform />,
-      description: 'Declarative infrastructure provisioning.',
+      description: "Declarative infrastructure provisioning.",
     },
     {
-      id: 'aws',
-      name: 'AWS',
-      subtitle: 'ECR + ECS/Fargate',
-      group: 'delivery',
+      id: "aws",
+      name: "AWS",
+      subtitle: "ECR + ECS/Fargate",
+      group: "delivery",
       icon: <FaAws />,
-      description: 'Cloud deployment demonstration using ECR and ECS Fargate.',
+      description: "Cloud deployment demonstration using ECR and ECS Fargate.",
     },
-
     {
-      id: 'otel',
-      name: 'OpenTelemetry',
-      subtitle: 'Instrumentation',
-      group: 'observability',
+      id: "otel",
+      name: "OpenTelemetry",
+      subtitle: "Instrumentation",
+      group: "observability",
       icon: <VscPulse />,
-      description: 'Application telemetry instrumentation and trace export.',
+      description: "Application telemetry instrumentation and trace export.",
     },
     {
-      id: 'prometheus',
-      name: 'Prometheus',
-      subtitle: 'Metrics',
-      group: 'observability',
-      healthKey: 'prometheus',
+      id: "prometheus",
+      name: "Prometheus",
+      subtitle: "Metrics",
+      group: "observability",
+      healthKey: "prometheus",
       icon: <SiPrometheus />,
-      description: 'Metrics collection for platform observability.',
+      description: "Metrics collection for platform observability.",
     },
     {
-      id: 'tempo',
-      name: 'Tempo',
-      subtitle: 'Tracing',
-      group: 'observability',
-      healthKey: 'tempo',
+      id: "tempo",
+      name: "Tempo",
+      subtitle: "Tracing",
+      group: "observability",
+      healthKey: "tempo",
       icon: <VscPulse />,
-      description: 'Distributed tracing backend receiving OpenTelemetry traces.',
+      description:
+        "Distributed tracing backend receiving OpenTelemetry traces.",
     },
     {
-      id: 'grafana',
-      name: 'Grafana',
-      subtitle: 'Visualization',
-      group: 'observability',
-      healthKey: 'grafana',
+      id: "grafana",
+      name: "Grafana",
+      subtitle: "Visualization",
+      group: "observability",
+      healthKey: "grafana",
       icon: <SiGrafana />,
-      description: 'Dashboards for metrics and observability data.',
+      description: "Dashboards for metrics and observability data.",
     },
-  ]
+  ];
+
+  const controllableServices: Partial<Record<string, ControllableService>> = {
+    fastapi: "api",
+    postgres: "db",
+    redis: "redis",
+    prometheus: "prometheus",
+    tempo: "tempo",
+    grafana: "grafana",
+  };
 
   const getStatus = (node: ArchitectureNode): NodeStatus => {
-    // A successful /health/platform response proves that FastAPI is reachable.
-    if (node.id === 'fastapi') {
-      return platform ? 'live' : 'down'
+    const statusServiceByNode: Partial<Record<string, string>> = {
+      fastapi: "api",
+      postgres: "db",
+      pgvector: "pgvector",
+      redis: "redis",
+      ollama: "ollama",
+      prometheus: "prometheus",
+      tempo: "tempo",
+      grafana: "grafana",
+    };
+
+    const statusService = statusServiceByNode[node.id];
+
+    if (statusService && dockerServices) {
+      return dockerServices.services[statusService]?.running ? "live" : "down";
     }
 
-    if (!node.healthKey) return 'architecture'
-    if (!platform) return 'down'
+    if (!node.healthKey) {
+      return "architecture";
+    }
 
-    return platform.services[node.healthKey]?.status === 'healthy'
-      ? 'live'
-      : 'down'
-  }
+    if (!platform) {
+      return "down";
+    }
 
-  const selectedNode =
-    nodes.find((node) => node.id === selected) ?? nodes[0]
+    return platform.services[node.healthKey]?.status === "healthy"
+      ? "live"
+      : "down";
+  };
 
-  const selectedStatus = getStatus(selectedNode)
+  const selectedNode = nodes.find((node) => node.id === selected) ?? nodes[0];
+
+  const selectedService = controllableServices[selectedNode.id];
+
+  const selectedStatus: NodeStatus =
+    selectedService && serviceTransitions[selectedService]
+      ? serviceTransitions[selectedService]!
+      : getStatus(selectedNode);
 
   const healthyCount = platform
     ? Object.values(platform.services).filter(
-        (service) => service.status === 'healthy',
+        (service) => service.status === "healthy",
       ).length
-    : 0
-
-
+    : 0;
 
   return (
     <section className="platform-page architecture-control-center">
       <div className="section-heading">
         <div>
           <p className="eyebrow">AI PLATFORM ENGINEERING</p>
+
           <h3>Interactive Architecture Control Center</h3>
+
           <p>
             Explore the application, Hybrid AI, delivery and observability
             architecture. Live services are connected to the FastAPI platform
@@ -317,21 +728,23 @@ function Platform() {
 
         <div
           className={`platform-overall ${
-            platform?.status === 'healthy' ? 'healthy' : 'degraded'
+            platform?.status === "healthy" ? "healthy" : "degraded"
           }`}
         >
           <span className="status-dot" />
+
           {loading
-            ? 'Checking platform...'
-            : platform?.status === 'healthy'
-              ? 'All Systems Operational'
-              : 'Platform Degraded'}
+            ? "Checking platform..."
+            : platform?.status === "healthy"
+              ? "All Systems Operational"
+              : "Platform Degraded"}
         </div>
       </div>
 
       <div className="platform-summary">
         <div className="card platform-stat">
           <span>Live Services</span>
+
           <strong>
             {healthyCount}
             <small> / 6</small>
@@ -340,33 +753,43 @@ function Platform() {
 
         <div className="card platform-stat">
           <span>Vector Database</span>
+
           <strong>
-            {platform?.services.postgres?.pgvector === 'enabled'
-              ? 'Enabled'
-              : 'Unknown'}
+            {dockerServices?.services.pgvector?.running
+              ? "Enabled"
+              : "Unavailable"}
           </strong>
         </div>
 
         <div className="card platform-stat">
           <span>LLM Model</span>
+
           <strong>
-            {platform?.services.ollama?.model_ready
-              ? platform.services.ollama.model
-              : 'Unavailable'}
+            {dockerServices?.services.ollama?.running
+              ? "llama3.2:3b"
+              : "Unavailable"}
           </strong>
         </div>
 
         <div className="card platform-stat">
-          <span>Auto Refresh</span>
-          <strong>10s</strong>
+          <span>Service Status</span>
+          <strong>1s</strong>
         </div>
       </div>
 
       <div className="architecture-toolbar">
         <div className="architecture-legend">
-          <span><i className="legend-live" /> Live monitored</span>
-          <span><i className="legend-architecture" /> Architecture component</span>
-          <span><i className="legend-down" /> Unavailable</span>
+          <span>
+            <i className="legend-live" /> Live monitored
+          </span>
+
+          <span>
+            <i className="legend-architecture" /> Architecture component
+          </span>
+
+          <span>
+            <i className="legend-down" /> Unavailable
+          </span>
         </div>
 
         <button type="button" onClick={loadHealth}>
@@ -383,7 +806,6 @@ function Platform() {
 
       <div className="architecture-layout">
         <div className="architecture-canvas">
-
           <div className="architecture-zone architecture-zone-app">
             <div className="architecture-zone-title">
               <span>01</span>
@@ -391,12 +813,28 @@ function Platform() {
             </div>
 
             <div className="architecture-flow architecture-flow-main">
-              <ArchitectureNodeCard id="react" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
+              <ArchitectureNodeCard
+                id="react"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+
               <div className="architecture-link">
                 <span>REST</span>
                 <b>→</b>
               </div>
-              <ArchitectureNodeCard id="fastapi" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
+
+              <ArchitectureNodeCard
+                id="fastapi"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
             </div>
           </div>
 
@@ -408,12 +846,27 @@ function Platform() {
 
             <div className="architecture-ai-grid">
               <div className="architecture-stack">
-                <ArchitectureNodeCard id="postgres" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
+                <ArchitectureNodeCard
+                  id="postgres"
+                  nodes={nodes}
+                  platform={platform}
+                  dockerServices={dockerServices}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
+
                 <div className="architecture-vertical-link">
-                  <span>vector extension</span>
-                  ↓
+                  <span>vector extension</span>↓
                 </div>
-                <ArchitectureNodeCard id="pgvector" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
+
+                <ArchitectureNodeCard
+                  id="pgvector"
+                  nodes={nodes}
+                  platform={platform}
+                  dockerServices={dockerServices}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
               </div>
 
               <div className="architecture-middle-links">
@@ -422,12 +875,27 @@ function Platform() {
               </div>
 
               <div className="architecture-stack">
-                <ArchitectureNodeCard id="redis" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
+                <ArchitectureNodeCard
+                  id="redis"
+                  nodes={nodes}
+                  platform={platform}
+                  dockerServices={dockerServices}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
+
                 <div className="architecture-vertical-link">
-                  <span>context</span>
-                  ↓
+                  <span>context</span>↓
                 </div>
-                <ArchitectureNodeCard id="hybrid-ai" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
+
+                <ArchitectureNodeCard
+                  id="hybrid-ai"
+                  nodes={nodes}
+                  platform={platform}
+                  dockerServices={dockerServices}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
               </div>
 
               <div className="architecture-middle-links">
@@ -435,7 +903,14 @@ function Platform() {
                 <b>→</b>
               </div>
 
-              <ArchitectureNodeCard id="ollama" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
+              <ArchitectureNodeCard
+                id="ollama"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
             </div>
           </div>
 
@@ -446,17 +921,69 @@ function Platform() {
             </div>
 
             <div className="architecture-delivery">
-              <ArchitectureNodeCard id="github" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
+              <ArchitectureNodeCard
+                id="github"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+
               <span className="pipeline-arrow">→</span>
-              <ArchitectureNodeCard id="docker" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
+
+              <ArchitectureNodeCard
+                id="docker"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+
               <span className="pipeline-arrow">→</span>
-              <ArchitectureNodeCard id="kubernetes" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
+
+              <ArchitectureNodeCard
+                id="kubernetes"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+
               <span className="pipeline-arrow">→</span>
-              <ArchitectureNodeCard id="helm" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
+
+              <ArchitectureNodeCard
+                id="helm"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+
               <span className="pipeline-arrow">→</span>
-              <ArchitectureNodeCard id="terraform" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
+
+              <ArchitectureNodeCard
+                id="terraform"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+
               <span className="pipeline-arrow">→</span>
-              <ArchitectureNodeCard id="aws" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
+
+              <ArchitectureNodeCard
+                id="aws"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
             </div>
           </div>
 
@@ -467,16 +994,47 @@ function Platform() {
             </div>
 
             <div className="architecture-observability">
-              <ArchitectureNodeCard id="otel" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
+              <ArchitectureNodeCard
+                id="otel"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+
               <span className="pipeline-arrow">→</span>
 
               <div className="architecture-observability-split">
-                <ArchitectureNodeCard id="prometheus" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
-                <ArchitectureNodeCard id="tempo" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
+                <ArchitectureNodeCard
+                  id="prometheus"
+                  nodes={nodes}
+                  platform={platform}
+                  dockerServices={dockerServices}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
+
+                <ArchitectureNodeCard
+                  id="tempo"
+                  nodes={nodes}
+                  platform={platform}
+                  dockerServices={dockerServices}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
               </div>
 
               <span className="pipeline-arrow">→</span>
-              <ArchitectureNodeCard id="grafana" nodes={nodes} platform={platform} selected={selected} onSelect={setSelected} />
+
+              <ArchitectureNodeCard
+                id="grafana"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
             </div>
           </div>
         </div>
@@ -486,6 +1044,7 @@ function Platform() {
 
           <div className="inspector-heading">
             <span className="inspector-icon">{selectedNode.icon}</span>
+
             <div>
               <h3>{selectedNode.name}</h3>
               <span>{selectedNode.subtitle}</span>
@@ -494,16 +1053,19 @@ function Platform() {
 
           <div className={`inspector-status ${selectedStatus}`}>
             <span className="status-dot" />
-            {selectedStatus === 'live'
-              ? 'Live monitored service'
-              : selectedStatus === 'down'
-                ? 'Service unavailable'
-                : 'Architecture component'}
+
+            {selectedStatus === "live"
+              ? "Live monitored service"
+              : selectedStatus === "down"
+                ? "Service unavailable"
+                : selectedStatus === "starting"
+                  ? "Service starting..."
+                  : selectedStatus === "stopping"
+                    ? "Service stopping..."
+                    : "Architecture component"}
           </div>
 
-          <p className="inspector-description">
-            {selectedNode.description}
-          </p>
+          <p className="inspector-description">{selectedNode.description}</p>
 
           <div className="inspector-meta">
             <div>
@@ -513,63 +1075,229 @@ function Platform() {
 
             <div>
               <span>Monitoring</span>
+
               <strong>
-                {selectedNode.healthKey ? 'Live API health' : 'Architecture'}
+                {selectedNode.healthKey ? "Live API health" : "Architecture"}
               </strong>
             </div>
 
-            {selectedNode.id === 'postgres' && (
+            {selectedNode.id === "postgres" && (
               <>
                 <div>
                   <span>PostgreSQL</span>
+
                   <strong>
-                    {platform?.services.postgres?.postgres ?? 'Unknown'}
+                    {platform?.services.postgres?.postgres ?? "Unknown"}
                   </strong>
                 </div>
+
                 <div>
                   <span>pgvector</span>
+
                   <strong>
-                    {platform?.services.postgres?.pgvector ?? 'Unknown'}
+                    {platform?.services.postgres?.pgvector ?? "Unknown"}
                   </strong>
                 </div>
               </>
             )}
 
-            {selectedNode.id === 'pgvector' && (
+            {selectedNode.id === "pgvector" && (
               <div>
                 <span>Extension</span>
+
                 <strong>
-                  {platform?.services.postgres?.pgvector ?? 'Unknown'}
+                  {dockerServices?.services.pgvector?.running
+                    ? "enabled"
+                    : "Unavailable"}
                 </strong>
               </div>
             )}
 
-            {selectedNode.id === 'ollama' && (
+            {selectedNode.id === "ollama" && (
               <>
                 <div>
                   <span>Runtime</span>
+
                   <strong>
-                    {platform?.services.ollama?.ollama ?? 'Unknown'}
+                    {dockerServices?.services.ollama?.running
+                      ? "running"
+                      : "Unavailable"}
                   </strong>
                 </div>
+
                 <div>
                   <span>Model</span>
+
                   <strong>
-                    {platform?.services.ollama?.model ?? 'Unknown'}
+                    {dockerServices?.services.ollama?.running
+                      ? "llama3.2:3b"
+                      : "Unavailable"}
                   </strong>
                 </div>
               </>
             )}
           </div>
+
+          {selectedService && (
+            <div className="inspector-control">
+              <div>
+                <span>Service Control</span>
+                <small>Administrator authentication required</small>
+              </div>
+
+              <button
+                type="button"
+                className={`service-control-button ${
+                  selectedStatus === "live"
+                    ? "service-control-off"
+                    : selectedStatus === "down"
+                      ? "service-control-on"
+                      : "service-control-transition"
+                }`}
+                disabled={
+                  selectedStatus === "starting" || selectedStatus === "stopping"
+                }
+                onClick={() => {
+                  setActionError("");
+                  setAdminPassword("");
+                  setPendingAction({
+                    service: selectedService,
+                    action: selectedStatus === "live" ? "stop" : "start",
+                  });
+                }}
+              >
+                {selectedStatus === "starting"
+                  ? "STARTING..."
+                  : selectedStatus === "stopping"
+                    ? "STOPPING..."
+                    : selectedStatus === "live"
+                      ? "TURN OFF"
+                      : "TURN ON"}
+              </button>
+            </div>
+          )}
 
           <div className="inspector-note">
             Click any technology in the architecture to inspect its role and
             live status when monitoring is available.
           </div>
+
+          {pendingAction && (
+            <div
+              className="control-modal-backdrop"
+              role="presentation"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) {
+                  setPendingAction(null);
+                  setAdminPassword("");
+                  setActionError("");
+                }
+              }}
+            >
+              <div
+                className="control-modal card"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="control-modal-title"
+              >
+                <p className="eyebrow">ADMINISTRATOR AUTHENTICATION</p>
+
+                <h3 id="control-modal-title">
+                  {pendingAction.action === "stop"
+                    ? "Turn off service?"
+                    : "Turn on service?"}
+                </h3>
+
+                <p>
+                  Authentication is required before changing the state of this
+                  platform service.
+                </p>
+
+                <label htmlFor="control-admin-password">
+                  Administrator password
+                </label>
+
+                <input
+                  id="control-admin-password"
+                  type="password"
+                  autoComplete="current-password"
+                  autoFocus
+                  value={adminPassword}
+                  onChange={(event) => {
+                    setAdminPassword(event.target.value);
+                    setActionError("");
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && adminPassword) {
+                      void executeServiceAction();
+                    }
+                  }}
+                  placeholder="Enter administrator password"
+                />
+
+                {actionError && (
+                  <div className="control-modal-error">{actionError}</div>
+                )}
+
+                <button
+                  type="button"
+                  className="service-control-button service-control-on"
+                  disabled={
+                    passkeyBusy ||
+                    (!passkeyStatus?.configured && !adminPassword)
+                  }
+                  onClick={() => {
+                    if (passkeyStatus?.configured) {
+                      void executePasskeyAction();
+                    } else {
+                      void setupPasskey();
+                    }
+                  }}
+                >
+                  {passkeyBusy
+                    ? "WAITING FOR TOUCH ID..."
+                    : passkeyStatus?.configured
+                      ? "AUTHENTICATE WITH TOUCH ID"
+                      : "SET UP TOUCH ID"}
+                </button>
+
+                <div className="control-modal-actions">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPendingAction(null);
+                      setAdminPassword("");
+                      setActionError("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={!adminPassword}
+                    onClick={() => void executeServiceAction()}
+                  >
+                    Authenticate &{" "}
+                    {pendingAction.action === "stop" ? "Turn Off" : "Turn On"}
+                  </button>
+                </div>
+
+                <div className="control-auth-options">
+                  <span>Password authentication available</span>
+                  <span>
+                    {passkeyStatus?.configured
+                      ? "Touch ID / Passkey configured"
+                      : "Touch ID / Passkey not configured"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </aside>
       </div>
     </section>
-  )
+  );
 }
 
-export default Platform
+export default Platform;
