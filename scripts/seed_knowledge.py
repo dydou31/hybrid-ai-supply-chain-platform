@@ -6,9 +6,12 @@ DOCUMENTS = [
     {
         "title": "Supplier Alpha delay",
         "content": (
-            "Supplier Alpha has recurring delivery delays averaging 8 days. "
-            "Le fournisseur Alpha présente des retards de livraison récurrents "
-            "avec une moyenne de 8 jours."
+            "Supplier Alpha has recurring supplier delivery delays and late deliveries. "
+            "Orders from Supplier Alpha arrive on average 8 days late. "
+            "Supplier Alpha is therefore considered a supplier with delivery delay risk. "
+            "Le fournisseur Alpha présente des retards de livraison récurrents. "
+            "Les commandes du fournisseur Alpha arrivent en moyenne avec 8 jours de retard. "
+            "Alpha est donc un fournisseur présentant un risque de retard de livraison."
         ),
         "source": "demo",
     },
