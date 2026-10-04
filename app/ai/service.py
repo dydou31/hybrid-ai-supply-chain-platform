@@ -1,3 +1,6 @@
+import os
+
+import boto3
 import requests
 from opentelemetry import trace
 
@@ -10,10 +13,86 @@ from app.observability.metrics import (
     RAG_REQUEST_DURATION_SECONDS,
 )
 
-OLLAMA_URL = "http://host.docker.internal:11434/api/generate"
-OLLAMA_MODEL = "llama3.2:3b"
+
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").lower()
+
+OLLAMA_URL = os.getenv(
+    "OLLAMA_URL",
+    "http://host.docker.internal:11434/api/generate",
+)
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+
+BEDROCK_REGION = os.getenv("BEDROCK_REGION", "eu-west-3")
+BEDROCK_MODEL = os.getenv(
+    "BEDROCK_MODEL",
+    "eu.amazon.nova-micro-v1:0",
+)
 
 tracer = trace.get_tracer(__name__)
+
+
+def generate_with_ollama(prompt: str) -> str:
+    with tracer.start_as_current_span("llm.ollama.generate") as span:
+        span.set_attribute("llm.provider", "ollama")
+        span.set_attribute("llm.model", OLLAMA_MODEL)
+
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False,
+            },
+            timeout=120,
+        )
+
+        response.raise_for_status()
+
+        return response.json()["response"].strip()
+
+
+def generate_with_bedrock(prompt: str) -> str:
+    with tracer.start_as_current_span("llm.bedrock.converse") as span:
+        span.set_attribute("llm.provider", "bedrock")
+        span.set_attribute("llm.model", BEDROCK_MODEL)
+
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name=BEDROCK_REGION,
+        )
+
+        response = client.converse(
+            modelId=BEDROCK_MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "text": prompt,
+                        }
+                    ],
+                }
+            ],
+            inferenceConfig={
+                "maxTokens": 500,
+                "temperature": 0,
+            },
+        )
+
+        return response["output"]["message"]["content"][0]["text"].strip()
+
+
+def generate_answer(prompt: str) -> str:
+    if LLM_PROVIDER == "ollama":
+        return generate_with_ollama(prompt)
+
+    if LLM_PROVIDER == "bedrock":
+        return generate_with_bedrock(prompt)
+
+    raise ValueError(
+        f"Unsupported LLM_PROVIDER: {LLM_PROVIDER}. "
+        "Expected 'ollama' or 'bedrock'."
+    )
 
 
 def ask_rag(query: str, limit: int = 3) -> dict:
@@ -84,20 +163,7 @@ QUESTION:
 ANSWER:
 """
 
-            with tracer.start_as_current_span("llm.ollama.generate") as span:
-                span.set_attribute("llm.model", OLLAMA_MODEL)
-
-                response = requests.post(
-                    OLLAMA_URL,
-                    json={
-                        "model": OLLAMA_MODEL,
-                        "prompt": prompt,
-                        "stream": False,
-                    },
-                    timeout=120,
-                )
-
-                response.raise_for_status()
+            answer = generate_answer(prompt)
 
             data_sources = [
                 {
@@ -115,7 +181,7 @@ ANSWER:
                 )
 
             return {
-                "answer": response.json()["response"].strip(),
+                "answer": answer,
                 "sources": [
                     {
                         "id": doc["id"],

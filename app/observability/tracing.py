@@ -1,8 +1,10 @@
+import os
+
 from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
 
 def setup_tracing():
@@ -13,8 +15,13 @@ def setup_tracing():
 
     provider = TracerProvider(resource=resource)
 
+    otlp_endpoint = os.getenv(
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "http://tempo:4317",
+    )
+
     exporter = OTLPSpanExporter(
-        endpoint="http://tempo:4317",
+        endpoint=otlp_endpoint,
         insecure=True,
     )
 

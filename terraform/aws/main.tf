@@ -35,15 +35,17 @@ resource "aws_ecs_task_definition" "api" {
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
+  task_role_arn            = aws_iam_role.ecs_task.arn
 
-  cpu    = "256"
-  memory = "1024"
+  cpu    = "512"
+  memory = "2048"
 
   container_definitions = jsonencode([
     {
       name      = "hybrid-ai-api"
       image     = "${aws_ecr_repository.api.repository_url}:latest"
       essential = true
+
       environment = [
         {
           name  = "DB_HOST"
@@ -60,6 +62,26 @@ resource "aws_ecs_task_definition" "api" {
         {
           name  = "DB_USER"
           value = "hybridai"
+        },
+        {
+          name  = "REDIS_URL"
+          value = "rediss://${aws_elasticache_replication_group.valkey.primary_endpoint_address}:6379/0"
+        },
+        {
+          name  = "OTEL_EXPORTER_OTLP_ENDPOINT"
+          value = "http://127.0.0.1:4317"
+        },
+        {
+          name  = "LLM_PROVIDER"
+          value = "bedrock"
+        },
+        {
+          name  = "BEDROCK_REGION"
+          value = "eu-west-3"
+        },
+        {
+          name  = "BEDROCK_MODEL"
+          value = "eu.amazon.nova-micro-v1:0"
         }
       ]
 
@@ -76,7 +98,7 @@ resource "aws_ecs_task_definition" "api" {
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.api.name
           "awslogs-region"        = "eu-west-3"
-          "awslogs-stream-prefix" = "ecs"
+          "awslogs-stream-prefix" = "ecs-api"
         }
       }
 
@@ -87,8 +109,136 @@ resource "aws_ecs_task_definition" "api" {
           protocol      = "tcp"
         }
       ]
+    },
+
+    {
+      name      = "aws-otel-collector"
+      image     = "public.ecr.aws/aws-observability/aws-otel-collector:latest"
+      essential = false
+
+      command = [
+        "--config",
+        "env:ADOT_CONFIG_CONTENT"
+      ]
+
+      environment = [
+        {
+          name = "ADOT_CONFIG_CONTENT"
+
+          value = <<-EOT
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+
+    prometheus:
+      config:
+        global:
+          scrape_interval: 15s
+        scrape_configs:
+          - job_name: hybrid-ai-api
+            static_configs:
+              - targets:
+                  - "localhost:8000"
+
+  processors:
+    batch: {}
+
+  extensions:
+    sigv4auth:
+      region: eu-west-3
+      service: aps
+
+  exporters:
+    awsxray:
+      region: eu-west-3
+
+    prometheusremotewrite:
+      endpoint: "${aws_prometheus_workspace.main.prometheus_endpoint}api/v1/remote_write"
+      auth:
+        authenticator: sigv4auth
+
+  service:
+    extensions:
+      - sigv4auth
+
+    pipelines:
+      traces:
+        receivers:
+          - otlp
+        processors:
+          - batch
+        exporters:
+          - awsxray
+
+      metrics:
+        receivers:
+          - prometheus
+        processors:
+          - batch
+        exporters:
+          - prometheusremotewrite
+EOT
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.api.name
+          "awslogs-region"        = "eu-west-3"
+          "awslogs-stream-prefix" = "ecs-adot"
+        }
+      }
     }
   ])
+}
+
+# ==========================================
+# ECS Task Role - Application / ADOT
+# ==========================================
+
+resource "aws_iam_role" "ecs_task" {
+  name = "hybrid-ai-ecs-task-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Principal = {
+          Service = "ecs-tasks.amazonaws.com"
+        }
+
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "ecs_amp" {
+  name = "hybrid-ai-ecs-amp-write"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Action = [
+          "aps:RemoteWrite"
+        ]
+
+        Resource = aws_prometheus_workspace.main.arn
+      }
+    ]
+  })
 }
 
 resource "aws_iam_role" "ecs_task_execution" {
@@ -443,6 +593,49 @@ resource "aws_iam_role_policy" "ecs_rds_secret" {
   })
 }
 
+resource "aws_iam_role_policy" "ecs_xray" {
+  name = "hybrid-ai-ecs-xray-write"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Action = [
+          "xray:PutTraceSegments",
+          "xray:PutTelemetryRecords"
+        ]
+
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "ecs_bedrock" {
+  name = "hybrid-ai-ecs-bedrock-invoke"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Action = [
+          "bedrock:InvokeModel"
+        ]
+
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # ==========================================
 # Frontend - S3
 # ==========================================
@@ -598,11 +791,39 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     compress = true
 
+
+
     function_association {
       event_type   = "viewer-request"
       function_arn = aws_cloudfront_function.api_rewrite.arn
     }
   }
+
+  # Grafana
+  ordered_cache_behavior {
+    path_pattern           = "/grafana/*"
+    target_origin_id       = "api-alb"
+    viewer_protocol_policy = "redirect-to-https"
+
+    allowed_methods = [
+      "DELETE",
+      "GET",
+      "HEAD",
+      "OPTIONS",
+      "PATCH",
+      "POST",
+      "PUT"
+    ]
+
+    cached_methods = ["GET", "HEAD"]
+
+    cache_policy_id = data.aws_cloudfront_cache_policy.caching_disabled.id
+
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+
+    compress = true
+  }
+
 
   restrictions {
     geo_restriction {
@@ -662,4 +883,93 @@ output "cloudfront_distribution_id" {
 
 output "frontend_url" {
   value = "https://${aws_cloudfront_distribution.frontend.domain_name}"
+}
+
+# ==========================================
+# ElastiCache - Valkey
+# ==========================================
+
+resource "aws_elasticache_subnet_group" "valkey" {
+  name = "hybrid-ai-valkey-subnet-group"
+
+  subnet_ids = [
+    aws_subnet.db_private_a.id,
+    aws_subnet.db_private_b.id
+  ]
+
+  tags = {
+    Name = "hybrid-ai-valkey-subnet-group"
+  }
+}
+
+# ==========================================
+# ElastiCache - Security Group
+# ==========================================
+
+resource "aws_security_group" "valkey" {
+  name        = "hybrid-ai-valkey-sg"
+  description = "Valkey access from ECS FastAPI only"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description     = "Valkey from ECS FastAPI"
+    from_port       = 6379
+    to_port         = 6379
+    protocol        = "tcp"
+    security_groups = [aws_security_group.api.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "hybrid-ai-valkey-sg"
+  }
+}
+
+# ==========================================
+# ElastiCache - Valkey Replication Group
+# ==========================================
+
+resource "aws_elasticache_replication_group" "valkey" {
+  replication_group_id = "hybrid-ai-valkey"
+  description          = "Valkey cache for Hybrid AI Supply Chain Platform"
+
+  engine         = "valkey"
+  engine_version = "9.1"
+  node_type      = "cache.t4g.micro"
+  port           = 6379
+
+  num_cache_clusters = 1
+
+  subnet_group_name  = aws_elasticache_subnet_group.valkey.name
+  security_group_ids = [aws_security_group.valkey.id]
+
+  at_rest_encryption_enabled = true
+  transit_encryption_enabled = true
+
+  automatic_failover_enabled = false
+  multi_az_enabled           = false
+
+  snapshot_retention_limit = 1
+
+  tags = {
+    Name = "hybrid-ai-valkey"
+  }
+}
+
+# ==========================================
+# Observability - Amazon Managed Prometheus
+# ==========================================
+
+resource "aws_prometheus_workspace" "main" {
+  alias = "hybrid-ai-prometheus"
+
+  tags = {
+    Name = "hybrid-ai-prometheus"
+  }
 }
