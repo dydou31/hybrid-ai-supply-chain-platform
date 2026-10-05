@@ -504,10 +504,27 @@ def get_relevant_structured_context(question: str) -> str:
             return "\n".join(lines)
 
         # Supplier name lookup
+        def supplier_matches_query(supplier):
+            supplier_name = supplier.name.lower().strip()
+
+            if supplier_name in q:
+                return True
+
+            significant_words = [
+                word.strip(".,()-")
+                for word in supplier_name.split()
+                if len(word.strip(".,()-")) >= 4
+            ]
+
+            return (
+                bool(significant_words)
+                and all(word in q for word in significant_words)
+            )
+
         matching_suppliers = [
             supplier
             for supplier in suppliers
-            if supplier.name.lower() in q
+            if supplier_matches_query(supplier)
         ]
 
         if matching_suppliers:

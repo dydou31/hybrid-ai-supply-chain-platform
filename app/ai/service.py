@@ -143,10 +143,21 @@ Rules:
 - If the supplied data does not contain the answer, say that you
   do not have enough information.
 - Always answer in the same language as the user's question.
-- If the user asks in French, answer entirely in French.
-- If the user asks in English, answer entirely in English.
-- Do not translate or explain the user's question unless explicitly asked.
-- Be concise and precise.
+- When the user asks to analyze a supplier, structure the answer in this order:
+  1. Risk level
+  2. Operational evidence from purchase orders
+  3. Blocked stock exposure
+  4. Recommended actions
+- When available in structured data, explicitly mention:
+  total purchase orders,
+  delayed purchase orders,
+  delay rate,
+  average delay days,
+  and blocked stock EUR.
+- Recommended actions must be practical supply-chain actions grounded in the supplied data.
+- Prefer actions such as supplier review, root-cause analysis, delivery recovery plan,
+  short-term supply securing, escalation, and weekly KPI follow-up when relevant.
+- Do not invent missing operational facts.
 
 BUSINESS GLOSSARY:
 {BUSINESS_GLOSSARY}

@@ -290,6 +290,11 @@ def validate_service_action(
     service: str,
     action: str,
 ):
+    # Special authenticated action:
+    # local business-data promotion to AWS.
+    if service == "aws-sync" and action == "sync_aws":
+        return
+
     if service not in ALLOWED_SERVICES:
         raise HTTPException(
             status_code=400,
@@ -696,6 +701,9 @@ def webauthn_authenticate_verify(
         "action"
     ]
 
+    if action == "sync_aws":
+        return run_aws_sync()
+
     return run_compose_action(
         action,
         service,
@@ -1023,6 +1031,62 @@ def run_compose_action(
             ),
         )
 
+# ============================================================
+# AWS DATA SYNC
+# ============================================================
+
+def run_aws_sync():
+    try:
+        result = subprocess.run(
+            [
+                str(PROJECT_DIR / ".venv" / "bin" / "python"),
+                str(
+                    PROJECT_DIR
+                    / "scripts"
+                    / "sync_local_to_aws.py"
+                ),
+            ],
+            cwd=PROJECT_DIR,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=True,
+        )
+
+        return {
+            "success": True,
+            "target": "aws",
+            "output": result.stdout.strip(),
+        }
+
+    except subprocess.TimeoutExpired:
+        raise HTTPException(
+            status_code=504,
+            detail="AWS sync timed out",
+        )
+
+    except subprocess.CalledProcessError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                exc.stderr.strip()
+                or exc.stdout.strip()
+                or "AWS sync failed"
+            ),
+        )
+
+
+@app.post("/sync/aws")
+def sync_to_aws(
+    x_admin_password: str | None = Header(
+        default=None
+    ),
+):
+    verify_admin_password(
+        x_admin_password
+    )
+
+    return run_aws_sync()
 
 # ============================================================
 # PASSWORD FALLBACK

@@ -42,11 +42,39 @@ type DockerServicesStatus = {
 
 type NodeStatus = "live" | "down" | "starting" | "stopping" | "architecture";
 
-type ServiceAction = "start" | "stop";
+type ServiceAction = "start" | "stop" | "sync_aws";
 
 type PasskeyStatus = {
   configured: boolean;
   rp_id: string;
+};
+
+type ControllableService =
+  | "api"
+  | "db"
+  | "redis"
+  | "prometheus"
+  | "tempo"
+  | "grafana"
+  | "aws-sync";
+
+type ArchitectureNode = {
+  id: string;
+  name: string;
+  subtitle: string;
+  group: "application" | "data" | "ai" | "delivery" | "observability";
+  healthKey?: string;
+  icon: React.ReactNode;
+  description: string;
+};
+
+type ArchitectureNodeProps = {
+  id: string;
+  nodes: ArchitectureNode[];
+  platform: PlatformHealth | null;
+  dockerServices: DockerServicesStatus | null;
+  selected: string;
+  onSelect: (id: string) => void;
 };
 
 const CONTROL_AGENT_URL = "http://127.0.0.1:8100";
@@ -55,6 +83,7 @@ function base64urlToUint8Array(value: string) {
   const padding = "=".repeat((4 - (value.length % 4)) % 4);
   const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
   const binary = window.atob(base64);
+
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
@@ -79,7 +108,10 @@ function prepareRegistrationOptions(
   return {
     ...publicKey,
     challenge: base64urlToUint8Array(publicKey.challenge),
-    user: { ...publicKey.user, id: base64urlToUint8Array(publicKey.user.id) },
+    user: {
+      ...publicKey.user,
+      id: base64urlToUint8Array(publicKey.user.id),
+    },
     excludeCredentials: (publicKey.excludeCredentials ?? []).map(
       (credential: any) => ({
         ...credential,
@@ -106,6 +138,7 @@ function prepareAuthenticationOptions(
 
 function registrationCredentialToJSON(credential: PublicKeyCredential) {
   const response = credential.response as AuthenticatorAttestationResponse;
+
   return {
     id: credential.id,
     rawId: arrayBufferToBase64url(credential.rawId),
@@ -125,6 +158,7 @@ function registrationCredentialToJSON(credential: PublicKeyCredential) {
 
 function authenticationCredentialToJSON(credential: PublicKeyCredential) {
   const response = credential.response as AuthenticatorAssertionResponse;
+
   return {
     id: credential.id,
     rawId: arrayBufferToBase64url(credential.rawId),
@@ -141,28 +175,6 @@ function authenticationCredentialToJSON(credential: PublicKeyCredential) {
     authenticatorAttachment: credential.authenticatorAttachment,
   };
 }
-
-type ControllableService =
-  "api" | "db" | "redis" | "prometheus" | "tempo" | "grafana";
-
-type ArchitectureNode = {
-  id: string;
-  name: string;
-  subtitle: string;
-  group: "application" | "data" | "ai" | "delivery" | "observability";
-  healthKey?: string;
-  icon: React.ReactNode;
-  description: string;
-};
-
-type ArchitectureNodeProps = {
-  id: string;
-  nodes: ArchitectureNode[];
-  platform: PlatformHealth | null;
-  dockerServices: DockerServicesStatus | null;
-  selected: string;
-  onSelect: (id: string) => void;
-};
 
 function ArchitectureNodeCard({
   id,
@@ -190,6 +202,7 @@ function ArchitectureNodeCard({
   };
 
   const dockerService = dockerServiceByNode[node.id];
+
   const dockerState = dockerService
     ? dockerServices?.services?.[dockerService]
     : undefined;
@@ -235,9 +248,12 @@ function ArchitectureNodeCard({
 
 function Platform() {
   const [platform, setPlatform] = useState<PlatformHealth | null>(null);
+
   const [dockerServices, setDockerServices] =
     useState<DockerServicesStatus | null>(null);
+
   const [loading, setLoading] = useState(true);
+
   const [selected, setSelected] = useState("fastapi");
 
   const [serviceTransitions, setServiceTransitions] = useState<
@@ -250,17 +266,29 @@ function Platform() {
   } | null>(null);
 
   const [adminPassword, setAdminPassword] = useState("");
+
   const [actionError, setActionError] = useState("");
+
   const [passkeyStatus, setPasskeyStatus] = useState<PasskeyStatus | null>(
     null,
   );
+
   const [passkeyBusy, setPasskeyBusy] = useState(false);
+
+  const [syncStatus, setSyncStatus] = useState<
+    "idle" | "syncing" | "synced" | "error"
+  >("idle");
 
   const loadPasskeyStatus = async () => {
     try {
       const response = await fetch(`${CONTROL_AGENT_URL}/webauthn/status`);
-      if (!response.ok) throw new Error("Passkey status request failed");
+
+      if (!response.ok) {
+        throw new Error("Passkey status request failed");
+      }
+
       const data: PasskeyStatus = await response.json();
+
       setPasskeyStatus(data);
     } catch {
       setPasskeyStatus(null);
@@ -276,6 +304,7 @@ function Platform() {
       }
 
       const data: PlatformHealth = await response.json();
+
       setPlatform(data);
     } catch {
       setPlatform(null);
@@ -286,13 +315,14 @@ function Platform() {
 
   const loadDockerStatus = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8100/services/status");
+      const response = await fetch(`${CONTROL_AGENT_URL}/services/status`);
 
       if (!response.ok) {
         throw new Error("Docker service status request failed");
       }
 
       const data: DockerServicesStatus = await response.json();
+
       setDockerServices(data);
     } catch {
       setDockerServices(null);
@@ -326,18 +356,107 @@ function Platform() {
 
     const { service, action } = pendingAction;
 
-    const transition = action === "start" ? "starting" : "stopping";
+    const isSync = action === "sync_aws";
+
+    const transition =
+      action === "start"
+        ? "starting"
+        : action === "stop"
+          ? "stopping"
+          : undefined;
 
     setActionError("");
 
-    setServiceTransitions((current) => ({
-      ...current,
-      [service]: transition,
-    }));
+    if (isSync) {
+      setSyncStatus("syncing");
+    }
+
+    if (transition) {
+      setServiceTransitions((current) => ({
+        ...current,
+        [service]: transition,
+      }));
+    }
 
     try {
-      const response = await fetch(
-        `http://127.0.0.1:8100/services/${service}/${action}`,
+      const url = isSync
+        ? `${CONTROL_AGENT_URL}/sync/aws`
+        : `${CONTROL_AGENT_URL}/services/${service}/${action}`;
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "X-Admin-Password": adminPassword,
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error("Invalid administrator password");
+        }
+
+        const errorData = await response.json().catch(() => null);
+
+        throw new Error(
+          errorData?.detail ??
+            (isSync ? "AWS sync failed" : "Service operation failed"),
+        );
+      }
+
+      setPendingAction(null);
+      setAdminPassword("");
+
+      if (isSync) {
+        setSyncStatus("synced");
+
+        window.setTimeout(() => {
+          setSyncStatus("idle");
+        }, 4000);
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 1000));
+
+      await Promise.all([loadHealth(), loadDockerStatus()]);
+    } catch (error) {
+      if (isSync) {
+        setSyncStatus("error");
+      }
+
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : isSync
+            ? "AWS sync failed"
+            : "Service operation failed",
+      );
+    } finally {
+      if (transition) {
+        setServiceTransitions((current) => {
+          const next = { ...current };
+
+          delete next[service];
+
+          return next;
+        });
+      }
+    }
+  };
+
+  const setupPasskey = async () => {
+    if (!adminPassword || passkeyBusy) return;
+
+    if (!window.PublicKeyCredential || !navigator.credentials) {
+      setActionError("WebAuthn is not supported by this browser");
+
+      return;
+    }
+
+    setPasskeyBusy(true);
+    setActionError("");
+
+    try {
+      const optionsResponse = await fetch(
+        `${CONTROL_AGENT_URL}/webauthn/register/options`,
         {
           method: "POST",
           headers: {
@@ -346,62 +465,28 @@ function Platform() {
         },
       );
 
-      if (!response.ok) {
-        if (response.status === 401) {
+      if (!optionsResponse.ok) {
+        if (optionsResponse.status === 401) {
           throw new Error("Invalid administrator password");
         }
 
-        throw new Error("Service operation failed");
-      }
-
-      setPendingAction(null);
-      setAdminPassword("");
-
-      await new Promise((resolve) => window.setTimeout(resolve, 1000));
-
-      await loadHealth();
-    } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : "Service operation failed",
-      );
-    } finally {
-      setServiceTransitions((current) => {
-        const next = { ...current };
-
-        delete next[service];
-
-        return next;
-      });
-    }
-  };
-
-  const setupPasskey = async () => {
-    if (!adminPassword || passkeyBusy) return;
-    if (!window.PublicKeyCredential || !navigator.credentials) {
-      setActionError("WebAuthn is not supported by this browser");
-      return;
-    }
-    setPasskeyBusy(true);
-    setActionError("");
-    try {
-      const optionsResponse = await fetch(
-        `${CONTROL_AGENT_URL}/webauthn/register/options`,
-        {
-          method: "POST",
-          headers: { "X-Admin-Password": adminPassword },
-        },
-      );
-      if (!optionsResponse.ok) {
-        if (optionsResponse.status === 401)
-          throw new Error("Invalid administrator password");
         const errorData = await optionsResponse.json().catch(() => null);
-        throw new Error(errorData?.detail ?? "Unable to start Touch ID setup");
+
+        throw new Error(
+          errorData?.detail ?? "Unable to start Touch ID setup",
+        );
       }
+
       const optionsData = await optionsResponse.json();
+
       const credential = (await navigator.credentials.create({
         publicKey: prepareRegistrationOptions(optionsData.publicKey),
       })) as PublicKeyCredential | null;
-      if (!credential) throw new Error("Touch ID setup was cancelled");
+
+      if (!credential) {
+        throw new Error("Touch ID setup was cancelled");
+      }
+
       const verifyResponse = await fetch(
         `${CONTROL_AGENT_URL}/webauthn/register/verify`,
         {
@@ -416,11 +501,15 @@ function Platform() {
           }),
         },
       );
+
       if (!verifyResponse.ok) {
         const errorData = await verifyResponse.json().catch(() => null);
+
         throw new Error(errorData?.detail ?? "Touch ID setup failed");
       }
+
       await loadPasskeyStatus();
+
       setAdminPassword("");
       setActionError("");
     } catch (error) {
@@ -438,58 +527,112 @@ function Platform() {
 
   const executePasskeyAction = async () => {
     if (!pendingAction || passkeyBusy) return;
+
     if (!window.PublicKeyCredential || !navigator.credentials) {
       setActionError("WebAuthn is not supported by this browser");
+
       return;
     }
+
     const { service, action } = pendingAction;
-    const transition = action === "start" ? "starting" : "stopping";
+
+    const isSync = action === "sync_aws";
+
+    const transition =
+      action === "start"
+        ? "starting"
+        : action === "stop"
+          ? "stopping"
+          : undefined;
+
     setPasskeyBusy(true);
     setActionError("");
+
     try {
       const optionsResponse = await fetch(
         `${CONTROL_AGENT_URL}/webauthn/authenticate/options`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ service, action }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            service,
+            action,
+          }),
         },
       );
+
       if (!optionsResponse.ok) {
         const errorData = await optionsResponse.json().catch(() => null);
+
         throw new Error(
           errorData?.detail ?? "Unable to start Touch ID authentication",
         );
       }
+
       const optionsData = await optionsResponse.json();
+
       const credential = (await navigator.credentials.get({
         publicKey: prepareAuthenticationOptions(optionsData.publicKey),
       })) as PublicKeyCredential | null;
-      if (!credential) throw new Error("Touch ID authentication was cancelled");
-      setServiceTransitions((current) => ({
-        ...current,
-        [service]: transition,
-      }));
+
+      if (!credential) {
+        throw new Error("Touch ID authentication was cancelled");
+      }
+
+      if (isSync) {
+        setSyncStatus("syncing");
+      }
+
+      if (transition) {
+        setServiceTransitions((current) => ({
+          ...current,
+          [service]: transition,
+        }));
+      }
+
       const verifyResponse = await fetch(
         `${CONTROL_AGENT_URL}/webauthn/authenticate/verify`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             request_id: optionsData.request_id,
             credential: authenticationCredentialToJSON(credential),
           }),
         },
       );
+
       if (!verifyResponse.ok) {
         const errorData = await verifyResponse.json().catch(() => null);
-        throw new Error(errorData?.detail ?? "Touch ID authentication failed");
+
+        throw new Error(
+          errorData?.detail ?? "Touch ID authentication failed",
+        );
       }
+
       setPendingAction(null);
       setAdminPassword("");
+
+      if (isSync) {
+        setSyncStatus("synced");
+
+        window.setTimeout(() => {
+          setSyncStatus("idle");
+        }, 4000);
+      }
+
       await new Promise((resolve) => window.setTimeout(resolve, 1000));
+
       await Promise.all([loadHealth(), loadDockerStatus()]);
     } catch (error) {
+      if (isSync) {
+        setSyncStatus("error");
+      }
+
       if (error instanceof DOMException && error.name === "NotAllowedError") {
         setActionError("Touch ID / Passkey authentication was cancelled");
       } else {
@@ -500,11 +643,16 @@ function Platform() {
         );
       }
     } finally {
-      setServiceTransitions((current) => {
-        const next = { ...current };
-        delete next[service];
-        return next;
-      });
+      if (transition) {
+        setServiceTransitions((current) => {
+          const next = { ...current };
+
+          delete next[service];
+
+          return next;
+        });
+      }
+
       setPasskeyBusy(false);
     }
   };
@@ -789,16 +937,17 @@ function Platform() {
 
   const nodes: ArchitectureNode[] = IS_AWS ? awsNodes : localNodes;
 
-  const controllableServices: Partial<Record<string, ControllableService>> = IS_AWS
-    ? {}
-    : {
-        fastapi: "api",
-        postgres: "db",
-        redis: "redis",
-        prometheus: "prometheus",
-        tempo: "tempo",
-        grafana: "grafana",
-      };
+  const controllableServices: Partial<Record<string, ControllableService>> =
+    IS_AWS
+      ? {}
+      : {
+          fastapi: "api",
+          postgres: "db",
+          redis: "redis",
+          prometheus: "prometheus",
+          tempo: "tempo",
+          grafana: "grafana",
+        };
 
   const getStatus = (node: ArchitectureNode): NodeStatus => {
     if (IS_AWS) {
@@ -959,421 +1108,442 @@ function Platform() {
         </div>
       )}
 
-      <div className={`architecture-layout${!IS_AWS ? " local-architecture-layout" : ""}`}>
-        <div className={`architecture-canvas${IS_AWS ? " aws-architecture" : ""}`}>
+      <div
+        className={`architecture-layout${
+          !IS_AWS ? " local-architecture-layout" : ""
+        }`}
+      >
+        <div
+          className={`architecture-canvas${IS_AWS ? " aws-architecture" : ""}`}
+        >
           {IS_AWS ? (
             <>
-          <div className="architecture-zone architecture-zone-app">
-            <div className="architecture-zone-title">
-              <span>01</span>
-              APPLICATION
-            </div>
+              <div className="architecture-zone architecture-zone-app">
+                <div className="architecture-zone-title">
+                  <span>01</span>
+                  APPLICATION
+                </div>
 
-            <div className="architecture-layout">
-              <ArchitectureNodeCard
-                id="cloudfront"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-              <span className="pipeline-arrow">→</span>
-              <ArchitectureNodeCard
-                id="alb"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-              <span className="pipeline-arrow">→</span>
-              <ArchitectureNodeCard
-                id="fastapi"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-            </div>
-          </div>
-          <div className="architecture-zone">
-            <div className="architecture-zone-title">
-              <span>02</span>
-              DATA &amp; HYBRID AI
-            </div>
+                <div className="architecture-layout">
+                  <ArchitectureNodeCard
+                    id="cloudfront"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
 
-            <div className="architecture-data-ai">
-              <div className="architecture-data-stack">
-                <ArchitectureNodeCard
-                  id="postgres"
-                  nodes={nodes}
-                  platform={platform}
-                  dockerServices={dockerServices}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
-                <ArchitectureNodeCard
-                  id="pgvector"
-                  nodes={nodes}
-                  platform={platform}
-                  dockerServices={dockerServices}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
+                  <span className="pipeline-arrow">→</span>
+
+                  <ArchitectureNodeCard
+                    id="alb"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+
+                  <span className="pipeline-arrow">→</span>
+
+                  <ArchitectureNodeCard
+                    id="fastapi"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+                </div>
               </div>
 
-              <span className="pipeline-arrow">→</span>
+              <div className="architecture-zone">
+                <div className="architecture-zone-title">
+                  <span>02</span>
+                  DATA &amp; HYBRID AI
+                </div>
 
-              <div className="architecture-data-stack">
-                <ArchitectureNodeCard
-                  id="redis"
-                  nodes={nodes}
-                  platform={platform}
-                  dockerServices={dockerServices}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
-                <ArchitectureNodeCard
-                  id="hybrid-ai"
-                  nodes={nodes}
-                  platform={platform}
-                  dockerServices={dockerServices}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
+                <div className="architecture-data-ai">
+                  <div className="architecture-data-stack">
+                    <ArchitectureNodeCard
+                      id="postgres"
+                      nodes={nodes}
+                      platform={platform}
+                      dockerServices={dockerServices}
+                      selected={selected}
+                      onSelect={setSelected}
+                    />
+
+                    <ArchitectureNodeCard
+                      id="pgvector"
+                      nodes={nodes}
+                      platform={platform}
+                      dockerServices={dockerServices}
+                      selected={selected}
+                      onSelect={setSelected}
+                    />
+                  </div>
+
+                  <span className="pipeline-arrow">→</span>
+
+                  <div className="architecture-data-stack">
+                    <ArchitectureNodeCard
+                      id="redis"
+                      nodes={nodes}
+                      platform={platform}
+                      dockerServices={dockerServices}
+                      selected={selected}
+                      onSelect={setSelected}
+                    />
+
+                    <ArchitectureNodeCard
+                      id="hybrid-ai"
+                      nodes={nodes}
+                      platform={platform}
+                      dockerServices={dockerServices}
+                      selected={selected}
+                      onSelect={setSelected}
+                    />
+                  </div>
+
+                  <span className="pipeline-arrow">→</span>
+
+                  <ArchitectureNodeCard
+                    id="bedrock"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+                </div>
               </div>
 
-              <span className="pipeline-arrow">→</span>
+              <div className="architecture-zone">
+                <div className="architecture-zone-title">
+                  <span>03</span>
+                  PLATFORM DELIVERY
+                </div>
 
-              <ArchitectureNodeCard
-                id="bedrock"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-            </div>
-          </div>
-          <div className="architecture-zone">
-            <div className="architecture-zone-title">
-              <span>03</span>
-              PLATFORM DELIVERY
-            </div>
+                <div className="architecture-delivery">
+                  <ArchitectureNodeCard
+                    id="terraform"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
 
-            <div className="architecture-delivery">
-              <ArchitectureNodeCard
-                id="terraform"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-              <span className="pipeline-arrow">→</span>
-              <ArchitectureNodeCard
-                id="ecr"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-              <span className="pipeline-arrow">→</span>
-              <ArchitectureNodeCard
-                id="fastapi"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-            </div>
-          </div>
-          <div className="architecture-zone">
-            <div className="architecture-zone-title">
-              <span>04</span>
-              OBSERVABILITY
-            </div>
+                  <span className="pipeline-arrow">→</span>
 
-            <div className="architecture-observability">
-              <ArchitectureNodeCard
-                id="otel"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-              <span className="pipeline-arrow">→</span>
+                  <ArchitectureNodeCard
+                    id="ecr"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
 
-              <div className="architecture-observability-split">
-                <ArchitectureNodeCard
-                  id="amp"
-                  nodes={nodes}
-                  platform={platform}
-                  dockerServices={dockerServices}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
-                <ArchitectureNodeCard
-                  id="cloudwatch"
-                  nodes={nodes}
-                  platform={platform}
-                  dockerServices={dockerServices}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
+                  <span className="pipeline-arrow">→</span>
+
+                  <ArchitectureNodeCard
+                    id="fastapi"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+                </div>
               </div>
 
-              <span className="pipeline-arrow">→</span>
-              <ArchitectureNodeCard
-                id="grafana"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-            </div>
-          </div>
+              <div className="architecture-zone">
+                <div className="architecture-zone-title">
+                  <span>04</span>
+                  OBSERVABILITY
+                </div>
+
+                <div className="architecture-observability">
+                  <ArchitectureNodeCard
+                    id="otel"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+
+                  <span className="pipeline-arrow">→</span>
+
+                  <div className="architecture-observability-split">
+                    <ArchitectureNodeCard
+                      id="amp"
+                      nodes={nodes}
+                      platform={platform}
+                      dockerServices={dockerServices}
+                      selected={selected}
+                      onSelect={setSelected}
+                    />
+
+                    <ArchitectureNodeCard
+                      id="cloudwatch"
+                      nodes={nodes}
+                      platform={platform}
+                      dockerServices={dockerServices}
+                      selected={selected}
+                      onSelect={setSelected}
+                    />
+                  </div>
+
+                  <span className="pipeline-arrow">→</span>
+
+                  <ArchitectureNodeCard
+                    id="grafana"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+                </div>
+              </div>
             </>
           ) : (
             <>
-          <div className="architecture-zone architecture-zone-app">
-            <div className="architecture-zone-title">
-              <span>01</span>
-              APPLICATION
-            </div>
-
-            <div className="architecture-flow architecture-flow-main">
-              <ArchitectureNodeCard
-                id="react"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-
-              <div className="architecture-link">
-                <span>REST</span>
-                <b>→</b>
-              </div>
-
-              <ArchitectureNodeCard
-                id="fastapi"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-            </div>
-          </div>
-
-          <div className="architecture-zone">
-            <div className="architecture-zone-title">
-              <span>02</span>
-              DATA & HYBRID AI
-            </div>
-
-            <div className="architecture-ai-grid">
-              <div className="architecture-stack">
-                <ArchitectureNodeCard
-                  id="postgres"
-                  nodes={nodes}
-                  platform={platform}
-                  dockerServices={dockerServices}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
-
-                <div className="architecture-vertical-link">
-                  <span>vector extension</span>↓
+              <div className="architecture-zone architecture-zone-app">
+                <div className="architecture-zone-title">
+                  <span>01</span>
+                  APPLICATION
                 </div>
 
-                <ArchitectureNodeCard
-                  id="pgvector"
-                  nodes={nodes}
-                  platform={platform}
-                  dockerServices={dockerServices}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
+                <div className="architecture-flow architecture-flow-main">
+                  <ArchitectureNodeCard
+                    id="react"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+
+                  <div className="architecture-link">
+                    <span>REST</span>
+                    <b>→</b>
+                  </div>
+
+                  <ArchitectureNodeCard
+                    id="fastapi"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+                </div>
               </div>
 
-              <div className="architecture-middle-links">
-                <span>SQL / cache</span>
-                <b>⇄</b>
-              </div>
-
-              <div className="architecture-stack">
-                <ArchitectureNodeCard
-                  id="redis"
-                  nodes={nodes}
-                  platform={platform}
-                  dockerServices={dockerServices}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
-
-                <div className="architecture-vertical-link">
-                  <span>context</span>↓
+              <div className="architecture-zone">
+                <div className="architecture-zone-title">
+                  <span>02</span>
+                  DATA & HYBRID AI
                 </div>
 
-                <ArchitectureNodeCard
-                  id="hybrid-ai"
-                  nodes={nodes}
-                  platform={platform}
-                  dockerServices={dockerServices}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
+                <div className="architecture-ai-grid">
+                  <div className="architecture-stack">
+                    <ArchitectureNodeCard
+                      id="postgres"
+                      nodes={nodes}
+                      platform={platform}
+                      dockerServices={dockerServices}
+                      selected={selected}
+                      onSelect={setSelected}
+                    />
+
+                    <div className="architecture-vertical-link">
+                      <span>vector extension</span>↓
+                    </div>
+
+                    <ArchitectureNodeCard
+                      id="pgvector"
+                      nodes={nodes}
+                      platform={platform}
+                      dockerServices={dockerServices}
+                      selected={selected}
+                      onSelect={setSelected}
+                    />
+                  </div>
+
+                  <div className="architecture-middle-links">
+                    <span>SQL / cache</span>
+                    <b>⇄</b>
+                  </div>
+
+                  <div className="architecture-stack">
+                    <ArchitectureNodeCard
+                      id="redis"
+                      nodes={nodes}
+                      platform={platform}
+                      dockerServices={dockerServices}
+                      selected={selected}
+                      onSelect={setSelected}
+                    />
+
+                    <div className="architecture-vertical-link">
+                      <span>context</span>↓
+                    </div>
+
+                    <ArchitectureNodeCard
+                      id="hybrid-ai"
+                      nodes={nodes}
+                      platform={platform}
+                      dockerServices={dockerServices}
+                      selected={selected}
+                      onSelect={setSelected}
+                    />
+                  </div>
+
+                  <div className="architecture-middle-links">
+                    <span>RAG</span>
+                    <b>→</b>
+                  </div>
+
+                  <ArchitectureNodeCard
+                    id="ollama"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+                </div>
               </div>
 
-              <div className="architecture-middle-links">
-                <span>RAG</span>
-                <b>→</b>
+              <div className="architecture-zone">
+                <div className="architecture-zone-title">
+                  <span>03</span>
+                  PLATFORM DELIVERY
+                </div>
+
+                <div className="architecture-delivery">
+                  <ArchitectureNodeCard
+                    id="github"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+
+                  <span className="pipeline-arrow">→</span>
+
+                  <ArchitectureNodeCard
+                    id="docker"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+
+                  <span className="pipeline-arrow">→</span>
+
+                  <ArchitectureNodeCard
+                    id="kubernetes"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+
+                  <span className="pipeline-arrow">→</span>
+
+                  <ArchitectureNodeCard
+                    id="helm"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+
+                  <span className="pipeline-arrow">→</span>
+
+                  <ArchitectureNodeCard
+                    id="terraform"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+
+                  <span className="pipeline-arrow">→</span>
+
+                  <ArchitectureNodeCard
+                    id="aws"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+                </div>
               </div>
 
-              <ArchitectureNodeCard
-                id="ollama"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-            </div>
-          </div>
+              <div className="architecture-zone">
+                <div className="architecture-zone-title">
+                  <span>04</span>
+                  OBSERVABILITY
+                </div>
 
-          <div className="architecture-zone">
-            <div className="architecture-zone-title">
-              <span>03</span>
-              PLATFORM DELIVERY
-            </div>
+                <div className="architecture-observability">
+                  <ArchitectureNodeCard
+                    id="otel"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
 
-            <div className="architecture-delivery">
-              <ArchitectureNodeCard
-                id="github"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
+                  <span className="pipeline-arrow">→</span>
 
-              <span className="pipeline-arrow">→</span>
+                  <div className="architecture-observability-split">
+                    <ArchitectureNodeCard
+                      id="prometheus"
+                      nodes={nodes}
+                      platform={platform}
+                      dockerServices={dockerServices}
+                      selected={selected}
+                      onSelect={setSelected}
+                    />
 
-              <ArchitectureNodeCard
-                id="docker"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
+                    <ArchitectureNodeCard
+                      id="tempo"
+                      nodes={nodes}
+                      platform={platform}
+                      dockerServices={dockerServices}
+                      selected={selected}
+                      onSelect={setSelected}
+                    />
+                  </div>
 
-              <span className="pipeline-arrow">→</span>
+                  <span className="pipeline-arrow">→</span>
 
-              <ArchitectureNodeCard
-                id="kubernetes"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-
-              <span className="pipeline-arrow">→</span>
-
-              <ArchitectureNodeCard
-                id="helm"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-
-              <span className="pipeline-arrow">→</span>
-
-              <ArchitectureNodeCard
-                id="terraform"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-
-              <span className="pipeline-arrow">→</span>
-
-              <ArchitectureNodeCard
-                id="aws"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-            </div>
-          </div>
-
-          <div className="architecture-zone">
-            <div className="architecture-zone-title">
-              <span>04</span>
-              OBSERVABILITY
-            </div>
-
-            <div className="architecture-observability">
-              <ArchitectureNodeCard
-                id="otel"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-
-              <span className="pipeline-arrow">→</span>
-
-              <div className="architecture-observability-split">
-                <ArchitectureNodeCard
-                  id="prometheus"
-                  nodes={nodes}
-                  platform={platform}
-                  dockerServices={dockerServices}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
-
-                <ArchitectureNodeCard
-                  id="tempo"
-                  nodes={nodes}
-                  platform={platform}
-                  dockerServices={dockerServices}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
+                  <ArchitectureNodeCard
+                    id="grafana"
+                    nodes={nodes}
+                    platform={platform}
+                    dockerServices={dockerServices}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+                </div>
               </div>
-
-              <span className="pipeline-arrow">→</span>
-
-              <ArchitectureNodeCard
-                id="grafana"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-            </div>
-          </div>
-
             </>
           )}
         </div>
@@ -1499,6 +1669,7 @@ function Platform() {
                 onClick={() => {
                   setActionError("");
                   setAdminPassword("");
+
                   setPendingAction({
                     service: selectedService,
                     action: selectedStatus === "live" ? "stop" : "start",
@@ -1512,6 +1683,44 @@ function Platform() {
                     : selectedStatus === "live"
                       ? "TURN OFF"
                       : "TURN ON"}
+              </button>
+            </div>
+          )}
+
+          {!IS_AWS && (
+            <div className="inspector-control cloud-promotion-control">
+              <div className="inspector-control-label">CLOUD PROMOTION</div>
+
+              <div className="inspector-control-meta">
+                <span>LOCAL → AWS</span>
+
+                <span>
+                  {syncStatus === "syncing"
+                    ? "Syncing..."
+                    : syncStatus === "synced"
+                      ? "Synced ✓"
+                      : syncStatus === "error"
+                        ? "Failed"
+                        : "Ready"}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                className="service-control-button"
+                disabled={syncStatus === "syncing"}
+                onClick={() => {
+                  setActionError("");
+                  setAdminPassword("");
+                  setSyncStatus("idle");
+
+                  setPendingAction({
+                    service: "aws-sync",
+                    action: "sync_aws",
+                  });
+                }}
+              >
+                {syncStatus === "syncing" ? "SYNCING..." : "SYNC TO AWS"}
               </button>
             </div>
           )}
@@ -1542,14 +1751,17 @@ function Platform() {
                 <p className="eyebrow">ADMINISTRATOR AUTHENTICATION</p>
 
                 <h3 id="control-modal-title">
-                  {pendingAction.action === "stop"
-                    ? "Turn off service?"
-                    : "Turn on service?"}
+                  {pendingAction.action === "sync_aws"
+                    ? "Sync local data to AWS?"
+                    : pendingAction.action === "stop"
+                      ? "Turn off service?"
+                      : "Turn on service?"}
                 </h3>
 
                 <p>
-                  Authentication is required before changing the state of this
-                  platform service.
+                  {pendingAction.action === "sync_aws"
+                    ? "Authentication is required before synchronizing local data to AWS."
+                    : "Authentication is required before changing the state of this platform service."}
                 </p>
 
                 <label htmlFor="control-admin-password">
@@ -1617,13 +1829,17 @@ function Platform() {
                     disabled={!adminPassword}
                     onClick={() => void executeServiceAction()}
                   >
-                    Authenticate &{" "}
-                    {pendingAction.action === "stop" ? "Turn Off" : "Turn On"}
+                    {pendingAction.action === "sync_aws"
+                      ? "Authenticate & Sync"
+                      : pendingAction.action === "stop"
+                        ? "Authenticate & Turn Off"
+                        : "Authenticate & Turn On"}
                   </button>
                 </div>
 
                 <div className="control-auth-options">
                   <span>Password authentication available</span>
+
                   <span>
                     {passkeyStatus?.configured
                       ? "Touch ID / Passkey configured"

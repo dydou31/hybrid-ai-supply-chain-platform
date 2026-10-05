@@ -10,7 +10,7 @@ tracer = trace.get_tracer(__name__)
 def semantic_search(
     query: str,
     limit: int = 3,
-    min_similarity: float = 0.30,
+    min_similarity: float = 0.40,
 ):
     with tracer.start_as_current_span("rag.semantic_search") as span:
         span.set_attribute("rag.limit", limit)
@@ -29,6 +29,7 @@ def semantic_search(
                 results = (
                     db.query(KnowledgeDocument, distance.label("distance"))
                     .filter(KnowledgeDocument.embedding.isnot(None))
+                    .filter(distance <= (1 - min_similarity))
                     .order_by(distance)
                     .limit(limit)
                     .all()
