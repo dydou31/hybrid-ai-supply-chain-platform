@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import './App.css'
 import AIAssistant from './AIAssistant'
 import Platform from './Platform'
-import { API_URL } from './config'
+import { API_URL, IS_AWS, PLATFORM_CONFIG } from './config'
 
 type NavItem = 'Dashboard' | 'Suppliers' | 'AI Assistant' | 'Platform'
 
@@ -233,7 +233,7 @@ useEffect(() => {
         <div className="sidebar-footer">
           <div className="environment">
             <span className="status-dot"></span>
-            Local environment
+            {IS_AWS ? "AWS Cloud" : "Local environment"}
           </div>
 
           <span>Platform v0.1.0</span>
@@ -276,7 +276,7 @@ useEffect(() => {
               <article className="card kpi">
                 <span>Active Suppliers</span>
                 <strong>{suppliersAvailable ? suppliers.length : '—'}</strong>
-                <small>FastAPI / PostgreSQL</small>
+                <small>{IS_AWS ? 'FastAPI / Amazon RDS' : 'FastAPI / PostgreSQL'}</small>
               </article>
 
               <article className="card kpi">
@@ -333,65 +333,93 @@ useEffect(() => {
                 </div>
 
                 <div className="service-list">
-                  {[
-                    {
-                      name: 'FastAPI',
-                      status: apiHealthy ? 'running' : 'unavailable',
-                    },
-                    {
-                      name: 'PostgreSQL + pgvector',
-                      status: !platformHealth
-                        ? 'unknown'
-                        : platformHealth.services.postgres?.status ===
-                              'healthy' &&
-                            platformHealth.services.postgres?.pgvector ===
-                              'enabled'
-                          ? 'running'
-                          : 'unavailable',
-                    },
-                    {
-                      name: 'Redis',
-                      status: !platformHealth
-                        ? 'unknown'
-                        : platformHealth.services.redis?.status === 'healthy'
-                          ? 'running'
-                          : 'unavailable',
-                    },
-                    {
-                      name: 'Prometheus',
-                      status: !platformHealth
-                        ? 'unknown'
-                        : platformHealth.services.prometheus?.status ===
-                            'healthy'
-                          ? 'running'
-                          : 'unavailable',
-                    },
-                    {
-                      name: 'Grafana',
-                      status: !platformHealth
-                        ? 'unknown'
-                        : platformHealth.services.grafana?.status ===
-                            'healthy'
-                          ? 'running'
-                          : 'unavailable',
-                    },
-                    {
-                      name: 'Tempo',
-                      status: !platformHealth
-                        ? 'unknown'
-                        : platformHealth.services.tempo?.status === 'healthy'
-                          ? 'running'
-                          : 'unavailable',
-                    },
-                    {
-                      name: 'Ollama + Llama',
-                      status: !platformHealth
-                        ? 'unknown'
-                        : platformHealth.services.ollama?.status === 'healthy'
-                          ? 'running'
-                          : 'unavailable',
-                    },
-                  ].map((service) => (
+                  {(IS_AWS
+                    ? [
+                        {
+                          name: 'ECS / Fargate API',
+                          status: apiHealthy ? 'running' : 'unavailable',
+                        },
+                        {
+                          name: PLATFORM_CONFIG.database,
+                          status:
+                            platformHealth?.services.postgres?.status === 'healthy'
+                              ? 'running'
+                              : 'unknown',
+                        },
+                        {
+                          name: PLATFORM_CONFIG.cache,
+                          status:
+                            platformHealth?.services.redis?.status === 'healthy'
+                              ? 'running'
+                              : 'unknown',
+                        },
+                        {
+                          name: PLATFORM_CONFIG.metrics,
+                          status: apiHealthy ? 'running' : 'unknown',
+                        },
+                        {
+                          name: PLATFORM_CONFIG.grafana,
+                          status: apiHealthy ? 'running' : 'unknown',
+                        },
+                        {
+                          name: PLATFORM_CONFIG.tracing,
+                          status: apiHealthy ? 'running' : 'unknown',
+                        },
+                        {
+                          name: PLATFORM_CONFIG.inference,
+                          status: apiHealthy ? 'running' : 'unknown',
+                        },
+                      ]
+                    : [
+                        {
+                          name: 'FastAPI',
+                          status: apiHealthy ? 'running' : 'unavailable',
+                        },
+                        {
+                          name: PLATFORM_CONFIG.database,
+                          status:
+                            platformHealth?.services.postgres?.status === 'healthy' &&
+                            platformHealth?.services.postgres?.pgvector === 'enabled'
+                              ? 'running'
+                              : 'unavailable',
+                        },
+                        {
+                          name: PLATFORM_CONFIG.cache,
+                          status:
+                            platformHealth?.services.redis?.status === 'healthy'
+                              ? 'running'
+                              : 'unavailable',
+                        },
+                        {
+                          name: PLATFORM_CONFIG.metrics,
+                          status:
+                            platformHealth?.services.prometheus?.status === 'healthy'
+                              ? 'running'
+                              : 'unavailable',
+                        },
+                        {
+                          name: PLATFORM_CONFIG.grafana,
+                          status:
+                            platformHealth?.services.grafana?.status === 'healthy'
+                              ? 'running'
+                              : 'unavailable',
+                        },
+                        {
+                          name: PLATFORM_CONFIG.tracing,
+                          status:
+                            platformHealth?.services.tempo?.status === 'healthy'
+                              ? 'running'
+                              : 'unavailable',
+                        },
+                        {
+                          name: PLATFORM_CONFIG.inference,
+                          status:
+                            platformHealth?.services.ollama?.status === 'healthy'
+                              ? 'running'
+                              : 'unavailable',
+                        },
+                      ]
+                  ).map((service) => (
                     <div className="service" key={service.name}>
                       <span>{service.name}</span>
 
@@ -418,13 +446,10 @@ useEffect(() => {
               </article>
 
               <article className="card ai-card">
-                <p className="eyebrow">RAG / LLAMA</p>
+                <p className="eyebrow">{PLATFORM_CONFIG.aiEyebrow}</p>
                 <h3>AI Supply Chain Assistant</h3>
 
-                <p>
-                  Ask operational questions using semantic search over the
-                  platform knowledge base and local Llama inference.
-                </p>
+                <p>{PLATFORM_CONFIG.aiDescription}</p>
 
                 <div className="ai-example">
                   <span>Example</span>

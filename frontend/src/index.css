@@ -463,6 +463,9 @@ textarea {
 
 .inspector-note {
   margin-top: 18px;
+  align-self: start;
+  height: fit-content;
+  min-height: 0;
   padding: 12px;
   border: 1px solid rgba(148, 163, 184, 0.13);
   border-radius: 10px;
@@ -534,48 +537,6 @@ textarea {
   }
 }
 
-
-/* ===== PLATFORM CONTROL CENTER — FINAL LAYOUT FIX ===== */
-
-/* Inspector remains inside its column */
-.architecture-inspector {
-  position: static !important;
-  top: auto !important;
-  align-self: start;
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-/* Correct status indicator colors */
-.architecture-node-status.architecture .status-dot,
-.inspector-status.architecture .status-dot {
-  background: #64748b !important;
-}
-
-.architecture-node-status.live .status-dot,
-.inspector-status.live .status-dot {
-  background: #22c55e !important;
-}
-
-.architecture-node-status.down .status-dot,
-.inspector-status.down .status-dot {
-  background: #ef4444 !important;
-}
-
-/* ===== COMPONENT INSPECTOR — STACKING FIX ===== */
-
-.architecture-inspector {
-  position: relative !important;
-  z-index: 20 !important;
-  background: #0f1724 !important;
-  isolation: isolate;
-}
-
-.architecture-canvas {
-  position: relative;
-  z-index: 1;
-}
 
 /* =========================================================
    COMPONENT INSPECTOR — FINAL STICKY COLUMN
@@ -869,4 +830,42 @@ textarea {
   background: rgba(245, 158, 11, 0.18) !important;
   border: 1px solid rgba(245, 158, 11, 0.7) !important;
   color: #fbbf24 !important;
+}
+/* ===== AWS CONTROL CENTER — HORIZONTAL PIPELINES ===== */
+
+.aws-architecture .architecture-application,
+.aws-architecture .architecture-data-ai {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+}
+
+.aws-architecture .architecture-application > .architecture-node,
+.aws-architecture .architecture-data-ai > .architecture-node,
+.aws-architecture .architecture-data-ai > .architecture-data-stack {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.aws-architecture .architecture-data-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.aws-architecture .pipeline-arrow {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  .aws-architecture .architecture-application,
+  .aws-architecture .architecture-data-ai {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .aws-architecture .pipeline-arrow {
+    transform: rotate(90deg);
+    align-self: center;
+  }
 }

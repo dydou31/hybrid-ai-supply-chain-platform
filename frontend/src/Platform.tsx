@@ -13,7 +13,7 @@ import {
 } from "react-icons/si";
 import { FaAws, FaRobot, FaGithub, FaProjectDiagram } from "react-icons/fa";
 import { VscPulse } from "react-icons/vsc";
-import { API_URL } from "./config";
+import { API_URL, IS_AWS } from "./config";
 
 type ServiceHealth = {
   status: string;
@@ -301,10 +301,18 @@ function Platform() {
 
   useEffect(() => {
     loadHealth();
+
+    const healthInterval = window.setInterval(loadHealth, 10000);
+
+    if (IS_AWS) {
+      return () => {
+        window.clearInterval(healthInterval);
+      };
+    }
+
     loadDockerStatus();
     loadPasskeyStatus();
 
-    const healthInterval = window.setInterval(loadHealth, 10000);
     const dockerInterval = window.setInterval(loadDockerStatus, 1000);
 
     return () => {
@@ -501,7 +509,7 @@ function Platform() {
     }
   };
 
-  const nodes: ArchitectureNode[] = [
+  const localNodes: ArchitectureNode[] = [
     {
       id: "react",
       name: "React",
@@ -656,16 +664,157 @@ function Platform() {
     },
   ];
 
-  const controllableServices: Partial<Record<string, ControllableService>> = {
-    fastapi: "api",
-    postgres: "db",
-    redis: "redis",
-    prometheus: "prometheus",
-    tempo: "tempo",
-    grafana: "grafana",
-  };
+  const awsNodes: ArchitectureNode[] = [
+    {
+      id: "cloudfront",
+      name: "CloudFront",
+      subtitle: "HTTPS + CDN",
+      group: "application",
+      icon: <FaAws />,
+      description:
+        "Public HTTPS entry point serving the React frontend and routing API traffic to the AWS backend.",
+    },
+    {
+      id: "alb",
+      name: "Application Load Balancer",
+      subtitle: "Traffic distribution",
+      group: "application",
+      icon: <FaAws />,
+      description:
+        "Distributes API traffic across healthy ECS Fargate tasks.",
+    },
+    {
+      id: "fastapi",
+      name: "ECS / Fargate",
+      subtitle: "FastAPI ×2",
+      group: "application",
+      icon: <SiFastapi />,
+      description:
+        "Highly available FastAPI backend running as two ECS Fargate tasks with automatic recovery.",
+    },
+    {
+      id: "postgres",
+      name: "Amazon RDS",
+      subtitle: "PostgreSQL",
+      group: "data",
+      healthKey: "postgres",
+      icon: <SiPostgresql />,
+      description:
+        "Private managed PostgreSQL database storing operational supply-chain data.",
+    },
+    {
+      id: "pgvector",
+      name: "pgvector",
+      subtitle: "Vector search",
+      group: "data",
+      healthKey: "postgres",
+      icon: <FaProjectDiagram />,
+      description:
+        "Vector extension inside Amazon RDS used for semantic retrieval and RAG.",
+    },
+    {
+      id: "redis",
+      name: "Amazon Valkey",
+      subtitle: "ElastiCache",
+      group: "data",
+      healthKey: "redis",
+      icon: <SiRedis />,
+      description:
+        "Private managed cache used by the cloud application.",
+    },
+    {
+      id: "bedrock",
+      name: "Amazon Bedrock",
+      subtitle: "Nova Micro",
+      group: "ai",
+      icon: <FaRobot />,
+      description:
+        "Managed cloud inference using Amazon Nova Micro through the ECS Task Role.",
+    },
+    {
+      id: "ecr",
+      name: "Amazon ECR",
+      subtitle: "Container Registry",
+      group: "delivery",
+      icon: <FaAws />,
+      description:
+        "Stores the Docker images deployed to ECS Fargate.",
+    },
+    {
+      id: "terraform",
+      name: "Terraform",
+      subtitle: "Infrastructure as Code",
+      group: "delivery",
+      icon: <SiTerraform />,
+      description:
+        "Versioned Infrastructure as Code for AWS networking, compute, data and observability resources.",
+    },
+    {
+      id: "amp",
+      name: "Amazon Managed Prometheus",
+      subtitle: "Metrics",
+      group: "observability",
+      icon: <SiPrometheus />,
+      description:
+        "Managed Prometheus workspace receiving application metrics through ADOT.",
+    },
+    {
+      id: "cloudwatch",
+      name: "CloudWatch",
+      subtitle: "Logs + Monitoring",
+      group: "observability",
+      icon: <VscPulse />,
+      description:
+        "Central AWS logging and operational monitoring for the cloud platform.",
+    },
+    {
+      id: "grafana",
+      name: "Grafana ECS",
+      subtitle: "Visualization",
+      group: "observability",
+      icon: <SiGrafana />,
+      description:
+        "Grafana running on ECS and visualizing cloud metrics from Amazon Managed Prometheus.",
+    },
+    {
+      id: "otel",
+      name: "OpenTelemetry / ADOT",
+      subtitle: "Telemetry pipeline",
+      group: "observability",
+      icon: <VscPulse />,
+      description:
+        "Collects and exports application telemetry to AWS observability services.",
+    },
+  ];
+
+  const nodes: ArchitectureNode[] = IS_AWS ? awsNodes : localNodes;
+
+  const controllableServices: Partial<Record<string, ControllableService>> = IS_AWS
+    ? {}
+    : {
+        fastapi: "api",
+        postgres: "db",
+        redis: "redis",
+        prometheus: "prometheus",
+        tempo: "tempo",
+        grafana: "grafana",
+      };
 
   const getStatus = (node: ArchitectureNode): NodeStatus => {
+    if (IS_AWS) {
+      if (!node.healthKey) {
+        return "architecture";
+      }
+
+      if (!platform) {
+        return "down";
+      }
+
+      return platform.services[node.healthKey]?.status === "healthy"
+        ? "live"
+        : "down";
+    }
+
     const statusServiceByNode: Partial<Record<string, string>> = {
       fastapi: "api",
       postgres: "db",
@@ -747,7 +896,7 @@ function Platform() {
 
           <strong>
             {healthyCount}
-            <small> / 6</small>
+            {!IS_AWS && <small> / 6</small>}
           </strong>
         </div>
 
@@ -755,9 +904,13 @@ function Platform() {
           <span>Vector Database</span>
 
           <strong>
-            {dockerServices?.services.pgvector?.running
-              ? "Enabled"
-              : "Unavailable"}
+            {IS_AWS
+              ? platform?.services.postgres?.status === "healthy"
+                ? "Enabled"
+                : "Unavailable"
+              : dockerServices?.services.pgvector?.running
+                ? "Enabled"
+                : "Unavailable"}
           </strong>
         </div>
 
@@ -765,15 +918,17 @@ function Platform() {
           <span>LLM Model</span>
 
           <strong>
-            {dockerServices?.services.ollama?.running
-              ? "llama3.2:3b"
-              : "Unavailable"}
+            {IS_AWS
+              ? "Amazon Nova Micro"
+              : dockerServices?.services.ollama?.running
+                ? "llama3.2:3b"
+                : "Unavailable"}
           </strong>
         </div>
 
         <div className="card platform-stat">
           <span>Service Status</span>
-          <strong>1s</strong>
+          <strong>{IS_AWS ? "10s" : "1s"}</strong>
         </div>
       </div>
 
@@ -805,7 +960,188 @@ function Platform() {
       )}
 
       <div className="architecture-layout">
-        <div className="architecture-canvas">
+        <div className={`architecture-canvas${IS_AWS ? " aws-architecture" : ""}`}>
+          {IS_AWS ? (
+            <>
+          <div className="architecture-zone architecture-zone-app">
+            <div className="architecture-zone-title">
+              <span>01</span>
+              APPLICATION
+            </div>
+
+            <div className="architecture-application">
+              <ArchitectureNodeCard
+                id="cloudfront"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+              <span className="pipeline-arrow">→</span>
+              <ArchitectureNodeCard
+                id="alb"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+              <span className="pipeline-arrow">→</span>
+              <ArchitectureNodeCard
+                id="fastapi"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+            </div>
+          </div>
+          <div className="architecture-zone">
+            <div className="architecture-zone-title">
+              <span>02</span>
+              DATA &amp; HYBRID AI
+            </div>
+
+            <div className="architecture-data-ai">
+              <div className="architecture-data-stack">
+                <ArchitectureNodeCard
+                  id="postgres"
+                  nodes={nodes}
+                  platform={platform}
+                  dockerServices={dockerServices}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
+                <ArchitectureNodeCard
+                  id="pgvector"
+                  nodes={nodes}
+                  platform={platform}
+                  dockerServices={dockerServices}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
+              </div>
+
+              <span className="pipeline-arrow">→</span>
+
+              <div className="architecture-data-stack">
+                <ArchitectureNodeCard
+                  id="redis"
+                  nodes={nodes}
+                  platform={platform}
+                  dockerServices={dockerServices}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
+                <ArchitectureNodeCard
+                  id="hybrid-ai"
+                  nodes={nodes}
+                  platform={platform}
+                  dockerServices={dockerServices}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
+              </div>
+
+              <span className="pipeline-arrow">→</span>
+
+              <ArchitectureNodeCard
+                id="bedrock"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+            </div>
+          </div>
+          <div className="architecture-zone">
+            <div className="architecture-zone-title">
+              <span>03</span>
+              PLATFORM DELIVERY
+            </div>
+
+            <div className="architecture-delivery">
+              <ArchitectureNodeCard
+                id="terraform"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+              <span className="pipeline-arrow">→</span>
+              <ArchitectureNodeCard
+                id="ecr"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+              <span className="pipeline-arrow">→</span>
+              <ArchitectureNodeCard
+                id="fastapi"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+            </div>
+          </div>
+          <div className="architecture-zone">
+            <div className="architecture-zone-title">
+              <span>04</span>
+              OBSERVABILITY
+            </div>
+
+            <div className="architecture-observability">
+              <ArchitectureNodeCard
+                id="otel"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+              <span className="pipeline-arrow">→</span>
+
+              <div className="architecture-observability-split">
+                <ArchitectureNodeCard
+                  id="amp"
+                  nodes={nodes}
+                  platform={platform}
+                  dockerServices={dockerServices}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
+                <ArchitectureNodeCard
+                  id="cloudwatch"
+                  nodes={nodes}
+                  platform={platform}
+                  dockerServices={dockerServices}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
+              </div>
+
+              <span className="pipeline-arrow">→</span>
+              <ArchitectureNodeCard
+                id="grafana"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+            </div>
+          </div>
+            </>
+          ) : (
+            <>
           <div className="architecture-zone architecture-zone-app">
             <div className="architecture-zone-title">
               <span>01</span>
@@ -914,129 +1250,8 @@ function Platform() {
             </div>
           </div>
 
-          <div className="architecture-zone">
-            <div className="architecture-zone-title">
-              <span>03</span>
-              PLATFORM DELIVERY
-            </div>
-
-            <div className="architecture-delivery">
-              <ArchitectureNodeCard
-                id="github"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-
-              <span className="pipeline-arrow">→</span>
-
-              <ArchitectureNodeCard
-                id="docker"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-
-              <span className="pipeline-arrow">→</span>
-
-              <ArchitectureNodeCard
-                id="kubernetes"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-
-              <span className="pipeline-arrow">→</span>
-
-              <ArchitectureNodeCard
-                id="helm"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-
-              <span className="pipeline-arrow">→</span>
-
-              <ArchitectureNodeCard
-                id="terraform"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-
-              <span className="pipeline-arrow">→</span>
-
-              <ArchitectureNodeCard
-                id="aws"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-            </div>
-          </div>
-
-          <div className="architecture-zone">
-            <div className="architecture-zone-title">
-              <span>04</span>
-              OBSERVABILITY
-            </div>
-
-            <div className="architecture-observability">
-              <ArchitectureNodeCard
-                id="otel"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-
-              <span className="pipeline-arrow">→</span>
-
-              <div className="architecture-observability-split">
-                <ArchitectureNodeCard
-                  id="prometheus"
-                  nodes={nodes}
-                  platform={platform}
-                  dockerServices={dockerServices}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
-
-                <ArchitectureNodeCard
-                  id="tempo"
-                  nodes={nodes}
-                  platform={platform}
-                  dockerServices={dockerServices}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
-              </div>
-
-              <span className="pipeline-arrow">→</span>
-
-              <ArchitectureNodeCard
-                id="grafana"
-                nodes={nodes}
-                platform={platform}
-                dockerServices={dockerServices}
-                selected={selected}
-                onSelect={setSelected}
-              />
-            </div>
-          </div>
+            </>
+          )}
         </div>
 
         <aside className="architecture-inspector card">

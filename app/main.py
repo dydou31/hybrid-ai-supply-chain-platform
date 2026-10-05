@@ -4,6 +4,7 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from app.observability.tracing import setup_tracing
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
+from app.routers.sync import router as sync_router
 
 from app.routers.suppliers import router as suppliers_router
 from app.routers.health import router as health_router
@@ -54,3 +55,4 @@ app.include_router(suppliers_router)
 app.include_router(purchase_orders_router)
 app.include_router(kpis_router)
 app.include_router(ai_router)
+app.include_router(sync_router)

@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter
 from sqlalchemy import text
 import urllib.request
@@ -127,14 +128,22 @@ def ollama_health():
 
 @router.get("/platform")
 def platform_health():
-    services = {
-        "postgres": postgres_health(),
-        "redis": redis_health(),
-        "prometheus": prometheus_health(),
-        "grafana": grafana_health(),
-        "tempo": tempo_health(),
-        "ollama": ollama_health(),
-    }
+    llm_provider = os.getenv("LLM_PROVIDER", "ollama").lower()
+
+    if llm_provider == "bedrock":
+        services = {
+            "postgres": postgres_health(),
+            "redis": redis_health(),
+        }
+    else:
+        services = {
+            "postgres": postgres_health(),
+            "redis": redis_health(),
+            "prometheus": prometheus_health(),
+            "grafana": grafana_health(),
+            "tempo": tempo_health(),
+            "ollama": ollama_health(),
+        }
 
     healthy = all(
         service["status"] == "healthy"

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { API_URL } from './config'
+import { API_URL, IS_AWS } from './config'
 
 type Source = {
   id: number
@@ -56,7 +56,9 @@ function AIAssistant() {
       setResponse(data)
     } catch {
       setError(
-        'Unable to contact the AI service. Check FastAPI and Ollama.',
+        IS_AWS
+          ? 'Unable to contact the AI service. Check the AWS API and Amazon Bedrock.'
+          : 'Unable to contact the AI service. Check FastAPI and Ollama.',
       )
     } finally {
       setLoading(false)
@@ -67,11 +69,18 @@ function AIAssistant() {
     <section className="ai-assistant-page">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">POSTGRESQL / RAG / PGVECTOR / LLAMA</p>
+          <p className="eyebrow">
+            {IS_AWS
+              ? 'AMAZON RDS / RAG / PGVECTOR / BEDROCK'
+              : 'POSTGRESQL / RAG / PGVECTOR / LLAMA'}
+          </p>
           <h3>AI Supply Chain Assistant</h3>
           <p>
             Ask operational questions using structured supply chain data,
-            semantic retrieval and local Llama inference.
+            semantic retrieval and{' '}
+            {IS_AWS
+              ? 'Amazon Bedrock inference with Nova Micro.'
+              : 'local Llama inference.'}
           </p>
         </div>
 
@@ -103,7 +112,11 @@ function AIAssistant() {
             />
 
             <div className="ai-query-footer">
-              <span>PostgreSQL + MiniLM → pgvector → Llama</span>
+              <span>
+                {IS_AWS
+                  ? 'Amazon RDS + MiniLM → pgvector → Bedrock / Nova Micro'
+                  : 'PostgreSQL + MiniLM → pgvector → Llama'}
+              </span>
 
               <button
                 type="submit"
@@ -153,7 +166,9 @@ function AIAssistant() {
               <h3>Analyzing knowledge...</h3>
 
               <p>
-                Analyzing PostgreSQL and pgvector context with Llama.
+                {IS_AWS
+                  ? 'Analyzing Amazon RDS and pgvector context with Bedrock / Nova Micro.'
+                  : 'Analyzing PostgreSQL and pgvector context with Llama.'}
               </p>
             </div>
           )}

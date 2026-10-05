@@ -89,6 +89,10 @@ resource "aws_ecs_task_definition" "api" {
         {
           name      = "DB_PASSWORD"
           valueFrom = "${aws_db_instance.postgres.master_user_secret[0].secret_arn}:password::"
+        },
+        {
+          name      = "SYNC_API_KEY"
+          valueFrom = "arn:aws:secretsmanager:eu-west-3:021914193620:secret:hybrid-ai/sync-api-key-ACLl3L"
         }
       ]
 
@@ -587,7 +591,10 @@ resource "aws_iam_role_policy" "ecs_rds_secret" {
         Action = [
           "secretsmanager:GetSecretValue"
         ]
-        Resource = aws_db_instance.postgres.master_user_secret[0].secret_arn
+        Resource = [
+          aws_db_instance.postgres.master_user_secret[0].secret_arn,
+          "arn:aws:secretsmanager:eu-west-3:021914193620:secret:hybrid-ai/sync-api-key-ACLl3L"
+        ]
       }
     ]
   })
