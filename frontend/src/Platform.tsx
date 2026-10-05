@@ -959,7 +959,7 @@ function Platform() {
         </div>
       )}
 
-      <div className="architecture-layout">
+      <div className={`architecture-layout${!IS_AWS ? " local-architecture-layout" : ""}`}>
         <div className={`architecture-canvas${IS_AWS ? " aws-architecture" : ""}`}>
           {IS_AWS ? (
             <>
@@ -969,7 +969,7 @@ function Platform() {
               APPLICATION
             </div>
 
-            <div className="architecture-application">
+            <div className="architecture-layout">
               <ArchitectureNodeCard
                 id="cloudfront"
                 nodes={nodes}
@@ -1241,6 +1241,130 @@ function Platform() {
 
               <ArchitectureNodeCard
                 id="ollama"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+            </div>
+          </div>
+
+          <div className="architecture-zone">
+            <div className="architecture-zone-title">
+              <span>03</span>
+              PLATFORM DELIVERY
+            </div>
+
+            <div className="architecture-delivery">
+              <ArchitectureNodeCard
+                id="github"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+
+              <span className="pipeline-arrow">→</span>
+
+              <ArchitectureNodeCard
+                id="docker"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+
+              <span className="pipeline-arrow">→</span>
+
+              <ArchitectureNodeCard
+                id="kubernetes"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+
+              <span className="pipeline-arrow">→</span>
+
+              <ArchitectureNodeCard
+                id="helm"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+
+              <span className="pipeline-arrow">→</span>
+
+              <ArchitectureNodeCard
+                id="terraform"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+
+              <span className="pipeline-arrow">→</span>
+
+              <ArchitectureNodeCard
+                id="aws"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+            </div>
+          </div>
+
+          <div className="architecture-zone">
+            <div className="architecture-zone-title">
+              <span>04</span>
+              OBSERVABILITY
+            </div>
+
+            <div className="architecture-observability">
+              <ArchitectureNodeCard
+                id="otel"
+                nodes={nodes}
+                platform={platform}
+                dockerServices={dockerServices}
+                selected={selected}
+                onSelect={setSelected}
+              />
+
+              <span className="pipeline-arrow">→</span>
+
+              <div className="architecture-observability-split">
+                <ArchitectureNodeCard
+                  id="prometheus"
+                  nodes={nodes}
+                  platform={platform}
+                  dockerServices={dockerServices}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
+
+                <ArchitectureNodeCard
+                  id="tempo"
+                  nodes={nodes}
+                  platform={platform}
+                  dockerServices={dockerServices}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
+              </div>
+
+              <span className="pipeline-arrow">→</span>
+
+              <ArchitectureNodeCard
+                id="grafana"
                 nodes={nodes}
                 platform={platform}
                 dockerServices={dockerServices}

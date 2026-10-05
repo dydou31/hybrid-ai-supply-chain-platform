@@ -32,6 +32,14 @@ const navItems: { label: NavItem; icon: string }[] = [
 ]
 
 function App() {
+  useEffect(() => {
+    const isLocalHost =
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1"
+
+    document.title = `Hybrid AI Supply Chain Platform | ${isLocalHost ? "LOCAL" : "CLOUD"}`
+  }, [])
+
   const getPageFromPath = (): NavItem => {
   switch (window.location.pathname) {
     case '/suppliers':
@@ -205,6 +213,12 @@ useEffect(() => {
 
   return (
     <div className="app">
+      <div
+        className={`environment-edge ${IS_AWS ? "environment-edge-cloud" : "environment-edge-local"}`}
+        aria-label={IS_AWS ? "Cloud environment" : "Local environment"}
+      >
+        <span>{IS_AWS ? "CLOUD" : "LOCAL"}</span>
+      </div>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-icon">AI</div>
