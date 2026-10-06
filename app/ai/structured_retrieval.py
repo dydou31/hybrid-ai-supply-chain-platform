@@ -271,6 +271,48 @@ def get_relevant_structured_context(question: str) -> str:
 
             return "\n".join(lines)
 
+        # High-risk suppliers to prioritize
+        if (
+            "fournisseur" in q
+            and "risqu" in q
+            and "priorit" in q
+        ):
+            candidates = [
+                item
+                for item in metrics
+                if item["supplier"].risk_level == "high"
+            ]
+
+            candidates.sort(
+                key=lambda item: (
+                    item["delayed"],
+                    item["delay_rate"],
+                    item["average_delay"],
+                    item["blocked_stock"],
+                ),
+                reverse=True,
+            )
+
+            lines.append(
+                "Fournisseurs à risque élevé classés par priorité. "
+                "Critères : commandes en retard, taux de retard, "
+                "retard moyen, puis stock bloqué."
+            )
+
+            for rank, item in enumerate(candidates[:5], start=1):
+                supplier = item["supplier"]
+
+                lines.append(
+                    f"{rank}. {supplier.name} | "
+                    f"risque=élevé | "
+                    f"commandes_en_retard={item['delayed']}/{item['orders']} | "
+                    f"taux_de_retard={item['delay_rate']:.2f}% | "
+                    f"retard_moyen_jours={item['average_delay']:.2f} | "
+                    f"stock_bloque_eur={item['blocked_stock']}"
+                )
+
+            return "\n".join(lines)
+
         # High-risk suppliers ranked by delayed orders
         if (
             "fournisseur" in q

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
 import type { FormEvent } from 'react'
 import { API_URL, IS_AWS } from './config'
 
@@ -25,6 +26,30 @@ function AIAssistant() {
   const [response, setResponse] = useState<AIResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [displayedAnswer, setDisplayedAnswer] = useState('')
+
+  useEffect(() => {
+    const fullAnswer = response?.answer ?? ''
+
+    if (!fullAnswer) {
+      setDisplayedAnswer('')
+      return
+    }
+
+    setDisplayedAnswer('')
+    let index = 0
+
+    const timer = window.setInterval(() => {
+      index = Math.min(index + 4, fullAnswer.length)
+      setDisplayedAnswer(fullAnswer.slice(0, index))
+
+      if (index >= fullAnswer.length) {
+        window.clearInterval(timer)
+      }
+    }, 12)
+
+    return () => window.clearInterval(timer)
+  }, [response?.answer])
 
   const askAI = async (event: FormEvent) => {
     event.preventDefault()
@@ -184,7 +209,9 @@ function AIAssistant() {
             <>
               <div className="answer-block">
                 <span>Answer</span>
-                <p>{response.answer}</p>
+                <div className="ai-answer-text">
+                  <ReactMarkdown>{displayedAnswer}</ReactMarkdown>
+                </div>
               </div>
 
               <div className="sources-header">
