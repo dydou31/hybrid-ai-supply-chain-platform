@@ -3,6 +3,7 @@ import './App.css'
 import AIAssistant from './AIAssistant'
 import Platform from './Platform'
 import { API_URL, IS_AWS, PLATFORM_CONFIG } from './config'
+import CloudLogin from "./CloudLogin";
 
 type NavItem = 'Dashboard' | 'Suppliers' | 'AI Assistant' | 'Platform'
 
@@ -32,6 +33,10 @@ const navItems: { label: NavItem; icon: string }[] = [
 ]
 
 function App() {
+  const [cloudAuthenticated, setCloudAuthenticated] = useState(
+    () => sessionStorage.getItem("hybrid-ai-cloud-auth") === "true"
+  );
+
   useEffect(() => {
     const isLocalHost =
       window.location.hostname === "localhost" ||
@@ -211,6 +216,14 @@ useEffect(() => {
     (supplier) => supplier.risk_level === 'high',
   ).length
 
+  if (IS_AWS && !cloudAuthenticated) {
+    return (
+      <CloudLogin
+        onAuthenticated={() => setCloudAuthenticated(true)}
+      />
+    );
+  }
+
   return (
     <div className="app">
       <div
@@ -261,9 +274,31 @@ useEffect(() => {
             <h2>{activePage}</h2>
           </div>
 
-          <div className="api-badge">
-            <span className="status-dot"></span>
-            {apiHealthy ? 'API Operational' : 'API Unavailable'}
+          <div className="topbar-actions">
+            <div className="api-badge">
+              <span className="status-dot"></span>
+              {apiHealthy ? 'API Operational' : 'API Unavailable'}
+            </div>
+
+            {IS_AWS && (
+              <button
+                type="button"
+                className="cloud-logout-button"
+                onClick={async () => {
+                  try {
+                    await fetch("/api/auth/logout", {
+                      method: "POST",
+                      credentials: "include",
+                    });
+                  } finally {
+                    sessionStorage.removeItem("hybrid-ai-cloud-auth");
+                    setCloudAuthenticated(false);
+                  }
+                }}
+              >
+                LOGOUT
+              </button>
+            )}
           </div>
         </header>
 

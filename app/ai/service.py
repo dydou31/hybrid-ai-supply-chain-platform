@@ -74,7 +74,7 @@ def generate_with_bedrock(prompt: str) -> str:
                 }
             ],
             inferenceConfig={
-                "maxTokens": 500,
+                "maxTokens": 1000,
                 "temperature": 0,
             },
         )

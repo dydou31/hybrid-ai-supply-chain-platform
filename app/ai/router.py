@@ -21,7 +21,4 @@ def ask(request: AskRequest):
 @router.get("/knowledge/count")
 def knowledge_count(db: Session = Depends(get_db)):
     count = db.query(KnowledgeDocument).count()
-
-    return {
-        "count": count,
-    }
+    return {"count": count}

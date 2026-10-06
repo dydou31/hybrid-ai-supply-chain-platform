@@ -1269,3 +1269,318 @@ nav {
 .ai-answer-text li {
   margin: 1px 0;
 }
+
+/* =========================================================
+   CLOUD ACCESS
+   ========================================================= */
+
+.cloud-login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  position: relative;
+  overflow: hidden;
+  padding: 32px 20px;
+  background:
+    radial-gradient(circle at 18% 15%, rgba(124,58,237,.18), transparent 34%),
+    radial-gradient(circle at 82% 85%, rgba(76,29,149,.16), transparent 36%),
+    #07080d;
+}
+
+.cloud-login-glow {
+  position: absolute;
+  width: 360px;
+  height: 360px;
+  border-radius: 999px;
+  filter: blur(90px);
+  opacity: .22;
+  pointer-events: none;
+}
+
+.cloud-login-glow-one {
+  top: -170px;
+  left: -120px;
+  background: #7c3aed;
+}
+
+.cloud-login-glow-two {
+  right: -140px;
+  bottom: -190px;
+  background: #5b21b6;
+}
+
+.cloud-login-card {
+  width: min(100%, 430px);
+  position: relative;
+  z-index: 1;
+  padding: 34px 34px 24px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 24px;
+  background: rgba(17,18,27,.82);
+  box-shadow: 0 28px 80px rgba(0,0,0,.48);
+  backdrop-filter: blur(22px);
+}
+
+.cloud-login-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.cloud-login-logo {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  background: rgba(124,58,237,.15);
+  border: 1px solid rgba(167,139,250,.22);
+  font-size: 22px;
+}
+
+.cloud-login-brand-name {
+  font-size: 18px;
+  font-weight: 850;
+  letter-spacing: .08em;
+  color: #f7f5ff;
+}
+
+.cloud-login-brand-subtitle {
+  margin-top: 2px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .19em;
+  color: #8f92a3;
+}
+
+.cloud-login-badge {
+  width: fit-content;
+  margin: 24px auto 0;
+  padding: 5px 10px;
+  border: 1px solid rgba(167,139,250,.25);
+  border-radius: 999px;
+  background: rgba(124,58,237,.11);
+  color: #b9a3ff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .18em;
+}
+
+.cloud-login-heading {
+  margin: 15px 0 25px;
+  text-align: center;
+}
+
+.cloud-login-heading h1 {
+  margin: 0;
+  color: #fff;
+  font-size: 23px;
+  letter-spacing: .05em;
+}
+
+.cloud-login-heading p {
+  margin: 7px 0 0;
+  color: #8e91a2;
+  font-size: 12px;
+}
+
+.cloud-login-form {
+  display: grid;
+  gap: 15px;
+}
+
+.cloud-login-form label {
+  display: grid;
+  gap: 7px;
+}
+
+.cloud-login-form label > span {
+  color: #b8bac7;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cloud-login-form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 11px;
+  outline: none;
+  background: rgba(5,6,11,.64);
+  color: #fff;
+  font-size: 13px;
+}
+
+.cloud-login-form input:focus {
+  border-color: rgba(139,92,246,.72);
+  box-shadow: 0 0 0 3px rgba(124,58,237,.12);
+}
+
+.cloud-login-form input::placeholder {
+  color: #5e6170;
+}
+
+.cloud-login-primary,
+.cloud-login-touchid {
+  width: 100%;
+  min-height: 43px;
+  border-radius: 11px;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: .08em;
+}
+
+.cloud-login-primary {
+  margin-top: 3px;
+  border: 1px solid rgba(167,139,250,.25);
+  background: linear-gradient(135deg,#6d28d9,#7c3aed);
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(109,40,217,.2);
+  cursor: pointer;
+}
+
+.cloud-login-primary:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+
+.cloud-login-error {
+  padding: 9px 11px;
+  border: 1px solid rgba(248,113,113,.22);
+  border-radius: 9px;
+  background: rgba(127,29,29,.12);
+  color: #fca5a5;
+  font-size: 11px;
+}
+
+.cloud-login-separator {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 11px;
+  margin: 20px 0 15px;
+}
+
+.cloud-login-separator span {
+  height: 1px;
+  background: rgba(255,255,255,.07);
+}
+
+.cloud-login-separator small {
+  color: #626574;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.cloud-login-touchid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid rgba(167,139,250,.18);
+  background: rgba(124,58,237,.06);
+  color: #c4b5fd;
+}
+
+.cloud-login-fingerprint {
+  font-size: 18px;
+}
+
+.cloud-login-security {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 20px;
+  color: #686b7a;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .06em;
+}
+
+.cloud-login-security span {
+  color: #8b5cf6;
+}
+
+.cloud-login-footer {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255,255,255,.055);
+  text-align: center;
+  color: #555866;
+  font-size: 9px;
+  letter-spacing: .04em;
+}
+
+.cloud-login-footer strong {
+  color: #777a89;
+}
+
+@media (max-width: 520px) {
+  .cloud-login-page {
+    padding: 18px;
+  }
+
+  .cloud-login-card {
+    padding: 28px 22px 21px;
+    border-radius: 20px;
+  }
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cloud-logout-button {
+  padding: 9px 13px;
+  border: 1px solid rgba(167,139,250,.2);
+  border-radius: 9px;
+  background: rgba(124,58,237,.07);
+  color: #b9a3ff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  cursor: pointer;
+  transition: all .16s ease;
+}
+
+.cloud-logout-button:hover {
+  background: rgba(124,58,237,.15);
+  border-color: rgba(167,139,250,.4);
+  color: #fff;
+}
+
+.cloud-login-touchid-setup {
+  display: block;
+  margin: 10px auto 0;
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  color: #777a89;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  cursor: pointer;
+}
+
+.cloud-login-touchid-setup:hover {
+  color: #b9a3ff;
+}
+
+.cloud-login-touchid-setup:disabled {
+  opacity: .5;
+  cursor: wait;
+}
+
+.cloud-login-success {
+  padding: 9px 11px;
+  border: 1px solid rgba(134,239,172,.18);
+  border-radius: 9px;
+  background: rgba(20,83,45,.12);
+  color: #86efac;
+  font-size: 11px;
+}
