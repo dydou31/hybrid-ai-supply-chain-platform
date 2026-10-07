@@ -1,474 +1,550 @@
-Hybrid AI Supply Chain Platform — Project Scope
+# PROJECT SCOPE — Hybrid AI Supply Chain Platform
 
-🎯 Vision du projet
+## 1. Purpose
 
-Hybrid AI Supply Chain Platform est une plateforme technique de démonstration conçue pour reproduire les problématiques rencontrées dans une équipe AI Foundation / AI Platform Engineering.
+The Hybrid AI Supply Chain Platform is a production-oriented engineering demonstrator built around a concrete Supply Chain use case.
 
-Le projet combine :
+Its purpose is to demonstrate how a business application can evolve into a coherent AI platform covering:
 
-* Backend Engineering
-* AI Engineering
-* LLM / RAG
-* Platform Engineering
-* Cloud & Infrastructure
-* Kubernetes
-* Infrastructure as Code
-* CI/CD
-* Observability
-* LLMOps
-* Supply Chain domain knowledge
+- backend and API engineering;
+- relational and vector data;
+- AI and Retrieval-Augmented Generation;
+- local and cloud inference;
+- containerization and orchestration;
+- infrastructure as code;
+- cloud deployment and autoscaling;
+- security and strong authentication;
+- observability and AI telemetry;
+- cloud cost visibility;
+- CI/CD and operational control.
 
-L’objectif n’est pas de construire un simple outil métier ou un dashboard, mais de démontrer la capacité à concevoir, développer, déployer, sécuriser, observer et faire évoluer une plateforme AI complète.
+The project deliberately connects application engineering and platform engineering instead of treating AI as an isolated feature.
 
-⸻
+---
 
-🧭 Objectifs principaux
+## 2. Scope Philosophy
 
-1. Backend Engineering
+The project follows four principles.
 
-Construire une API backend professionnelle et extensible avec :
+### Business first
 
-* Python
-* FastAPI
-* Pydantic
-* SQLAlchemy
-* PostgreSQL
-* Alembic
-* REST API
-* OpenAPI / Swagger
-* validation des données
-* architecture modulaire
-* gestion des erreurs
-* tests automatisés
+Technology is introduced to solve a concrete problem rather than to create an artificial technology showcase.
 
-L’API constitue la couche applicative de la plateforme.
+The domain is Supply Chain because it provides realistic operational entities, KPIs and decision-support scenarios.
 
-⸻
+### End-to-end engineering
 
-2. AI Engineering
+The scope extends beyond an AI proof of concept.
 
-Intégrer une couche Intelligence Artificielle capable de travailler avec les données Supply Chain.
+The system includes the layers required to build, run, secure, observe and operate the application.
 
-Les fonctionnalités prévues incluent :
+### Hybrid by design
 
-* LLM integration
-* RAG (Retrieval-Augmented Generation)
-* embeddings
-* vector search
-* pgvector
-* AI Supply Chain Assistant
-* classification
-* anomaly detection
-* forecasting
-* supplier risk scoring
-* AI-assisted decision support
+Local development and AWS deployment are intentionally separated while sharing the same application concepts.
 
-L’objectif est de démontrer comment une application métier peut exploiter des modèles IA au sein d’une architecture backend industrialisable.
+Local inference uses Ollama. Cloud inference uses Amazon Bedrock.
 
-⸻
+### Honest production orientation
 
-3. AI Platform Engineering
+The project implements and demonstrates production-oriented patterns, but does not claim to reproduce the scale, organizational processes or operational history of a large enterprise production platform.
 
-Construire l’infrastructure permettant d’exécuter et d’exposer les services IA.
+---
 
-La plateforme devra progressivement intégrer :
+## 3. Functional Scope
 
-* Docker
-* Docker Compose
-* Kubernetes
-* Helm
-* Terraform
-* CI/CD
-* container registry
-* secrets management
-* health checks
-* readiness / liveness probes
-* autoscaling
-* configuration par environnement
-* networking
-* ingress
-* TLS
-* observabilité
+### Supply Chain Domain
 
-L’objectif est de pouvoir déployer les composants de manière reproductible et indépendante de l’environnement.
+The business layer covers operational Supply Chain information such as:
 
-⸻
+- suppliers;
+- deliveries / purchasing-related operational data;
+- supplier risk;
+- delivery performance;
+- delayed deliveries;
+- average delay;
+- delay rate;
+- blocked stock;
+- supplier prioritization;
+- operational KPIs.
 
-4. LLMOps
+The domain exists to provide realistic data and decisions for the platform.
 
-Mettre en place les mécanismes nécessaires à l’exploitation de modèles LLM en environnement industrialisé.
+The project is not intended to become an ERP, SAP replacement or BI suite.
 
-Le projet pourra intégrer :
-
-* model routing
-* model fallback
-* prompt management
-* model evaluation
-* latency monitoring
-* token usage
-* cost tracking
-* error tracking
-* AI request tracing
-* model performance monitoring
-* guardrails
-* versioning
+---
 
-L’objectif est de démontrer que l’IA n’est pas uniquement appelée depuis une API, mais qu’elle peut être opérée comme un véritable composant de plateforme.
+## 4. Backend and API Scope
 
-⸻
-
-5. Cloud & Infrastructure
-
-Construire une architecture cloud-ready et portable.
-
-Technologies envisagées :
-
-* AWS
-* Azure
-* OVHcloud
-* Terraform
-* Kubernetes
-* Docker
-* object storage compatible S3
-* PostgreSQL
-* networking cloud
-* IAM
-* secrets
-* monitoring
-
-Le projet sera développé localement puis préparé pour un déploiement cloud.
-
-⸻
-
-6. Observability
-
-Mettre en place une observabilité permettant de comprendre le comportement de la plateforme.
-
-Technologies :
-
-* OpenTelemetry
-* Prometheus
-* Grafana
-* structured logging
-* metrics
-* traces
-* health checks
-* application monitoring
-* AI/LLM monitoring
-
-Les métriques pourront notamment couvrir :
-
-* API latency
-* HTTP errors
-* request throughput
-* database performance
-* LLM latency
-* token consumption
-* model errors
-* infrastructure health
-
-⸻
-
-7. Security
-
-La plateforme intégrera progressivement des mécanismes de sécurité adaptés à une architecture cloud / AI.
-
-Prévisions :
-
-* JWT authentication
-* RBAC
-* secrets management
-* environment variables
-* TLS
-* API security
-* container security
-* dependency scanning
-* image scanning
-* IAM
-* least privilege
-* network isolation
-
-⸻
-
-🧪 Nature du projet
-
-Ce projet est un portfolio engineering project et non un produit commercial.
-
-Il constitue :
-
-* une expérimentation professionnelle ;
-* un démonstrateur technique ;
-* une preuve de compétences ;
-* une architecture de référence ;
-* une plateforme AI simplifiée ;
-* un support de démonstration pour des entretiens techniques.
-
-Le domaine Supply Chain est utilisé comme cas d’usage concret afin de donner un contexte métier aux composants techniques.
-
-⸻
-
-🏗️ Architecture cible
-
-                         USER / CLIENT
-                              │
-                              ▼
-                    ┌───────────────────┐
-                    │    API Gateway    │
-                    │   Ingress / TLS   │
-                    └─────────┬─────────┘
-                              │
-                              ▼
-                    ┌───────────────────┐
-                    │   FastAPI API     │
-                    │ Backend Services  │
-                    └─────────┬─────────┘
-                              │
-             ┌────────────────┼────────────────┐
-             │                │                │
-             ▼                ▼                ▼
-       PostgreSQL         AI ENGINE        Cache / Queue
-       SQLAlchemy         LLM / RAG        Redis
-       Alembic            pgvector
-                           Forecast
-                           Scoring
-                           Agents
-             │                │
-             └────────────────┼────────────────┐
-                              ▼
-                    ┌───────────────────┐
-                    │   Observability   │
-                    │ OpenTelemetry     │
-                    │ Prometheus        │
-                    │ Grafana            │
-                    └───────────────────┘
-                              │
-                              ▼
-                    ┌───────────────────┐
-                    │      Docker       │
-                    │  Container Images │
-                    └─────────┬─────────┘
-                              │
-                              ▼
-                    ┌───────────────────┐
-                    │     CI / CD       │
-                    │ GitHub Actions    │
-                    └─────────┬─────────┘
-                              │
-                              ▼
-                    ┌───────────────────┐
-                    │ Container Registry│
-                    └─────────┬─────────┘
-                              │
-                     ┌────────┴────────┐
-                     ▼                 ▼
-                Kubernetes           Cloud
-                     │             AWS / Azure
-                     │             / OVHcloud
-                     ▼
-                   Helm
-                     │
-                     ▼
-                 Terraform
-
-⸻
-
-🧩 Architecture applicative
-
-app/
-│
-├── main.py
-│
-├── core/
-│   ├── config.py
-│   ├── security.py
-│   └── logging.py
-│
-├── database/
-│   ├── connection.py
-│   └── dependencies.py
-│
-├── models/
-│   ├── supplier.py
-│   └── purchase_order.py
-│
-├── schemas/
-│   ├── supplier.py
-│   └── purchase_order.py
-│
-├── routers/
-│   ├── suppliers.py
-│   ├── purchase_orders.py
-│   ├── kpis.py
-│   └── ai.py
-│
-├── services/
-│   ├── supplier_service.py
-│   ├── purchase_order_service.py
-│   ├── forecast_service.py
-│   ├── rag_service.py
-│   └── llm_service.py
-│
-└── ai/
-    ├── embeddings.py
-    ├── vector_store.py
-    ├── models.py
-    ├── routing.py
-    └── evaluation.py
-
-⸻
-
-📦 Supply Chain Domain
-
-Le domaine métier sert de cas d’usage à la plateforme.
-
-La plateforme pourra gérer :
-
-Suppliers
-
-* supplier
-* country
-* risk level
-* blocked stock
-* supplier performance
-
-Purchase Orders
-
-* PO number
-* supplier
-* order date
-* requested date
-* confirmed date
-* quantity
-* unit price
-* status
-
-Supply Chain KPIs
-
-* purchase order volume
-* purchase order value
-* confirmation delay
-* supplier risk
-* blocked stock
-* supplier performance
-
-Ces données constituent la base utilisée ensuite par les composants AI.
-
-⸻
-
-🤖 AI Use Cases
-
-Les fonctionnalités IA seront progressivement construites autour de cas d’usage réalistes :
-
-Forecasting
-
-Prévision :
-
-* demand
-* purchase orders
-* supply risk
-* potential delays
-
-Risk scoring
-
-Calcul d’un score fournisseur basé sur :
-
-* historical delays
-* blocked stock
-* order volume
-* performance indicators
-
-Anomaly detection
-
-Détection :
-
-* abnormal delays
-* unusual order quantities
-* unusual supplier behaviour
-* abnormal stock situations
-
-RAG
-
-Permettre au LLM d’interroger :
-
-* supplier information
-* purchase orders
-* Supply Chain documentation
-* internal procedures
-* business rules
-
-AI Assistant
-
-Exemple :
-
-“Quels fournisseurs présentent actuellement le plus de risques et pourquoi ?”
-
-Le LLM pourra récupérer les données pertinentes via les services de la plateforme avant de générer une réponse.
-
-⸻
-
-🌐 Frontend
-
-Un frontend peut être ajouté afin de démontrer la dimension AI Full Stack.
-
-Il restera volontairement secondaire par rapport à la plateforme.
-
-Objectifs :
-
-* interaction avec l’API
-* AI assistant
-* visualisation de quelques résultats
-* démonstration RAG
-* affichage des informations Supply Chain
-
-Le frontend n’a pas pour objectif de devenir un projet BI ou Power BI.
-
-⸻
-
-🚀 Résultat attendu
-
-À terme, le projet devra démontrer la capacité à :
-
-* développer une API Python moderne ;
-* connecter une base PostgreSQL ;
-* intégrer des modèles IA ;
-* construire une architecture RAG ;
-* déployer des applications conteneurisées ;
-* automatiser les déploiements ;
-* provisionner l’infrastructure avec Terraform ;
-* orchestrer les workloads avec Kubernetes ;
-* observer une plateforme avec OpenTelemetry ;
-* monitorer les modèles IA ;
-* sécuriser les services ;
-* préparer une architecture cloud ;
-* faire fonctionner l’ensemble comme une plateforme cohérente.
-
-⸻
-
-🎯 Positionnement professionnel
-
-Le projet est principalement orienté vers :
-
-* AI Platform Engineer
-* AI Foundation Engineer
-* AI Full Stack Engineer
-* AI Engineer
-* ML Platform Engineer
-* Cloud / DevOps Engineer orienté AI
-
-Le projet permet également de valoriser les compétences Backend, Python, Data et Supply Chain.
-
-⸻
-
-🚫 Ce que le projet n’est pas
-
-Le projet n’a pas pour objectif principal de devenir :
-
-* un dashboard Power BI ;
-* un ERP ;
-* un outil SAP ;
-* une simple API CRUD ;
-* un notebook Machine Learning ;
-* une simple application ChatGPT ;
-* une infrastructure Kubernetes sans application réelle.
-
-L’objectif est de construire une plateforme technique complète avec un cas d’usage métier concret.
+The backend is implemented in Python with FastAPI.
+
+In scope:
+
+- REST endpoints;
+- CRUD operations;
+- request/response validation;
+- Supply Chain business logic;
+- KPI computation;
+- database access;
+- AI query endpoints;
+- platform health endpoints;
+- authentication integration;
+- observability instrumentation;
+- Swagger / OpenAPI documentation.
+
+The backend is intended to remain modular so business logic, data access and AI orchestration can evolve independently.
+
+---
+
+## 5. Data Scope
+
+### PostgreSQL
+
+PostgreSQL is the primary persistence technology.
+
+It stores structured operational data and supports the AI knowledge layer.
+
+### SQLAlchemy and Alembic
+
+SQLAlchemy provides database access and Alembic manages schema migrations.
+
+### pgvector
+
+pgvector provides vector storage and similarity search inside PostgreSQL.
+
+Current semantic embeddings use 384 dimensions.
+
+This is a deliberate architectural choice: the current project does not require a separate dedicated vector database.
+
+---
+
+## 6. AI Scope
+
+The AI layer is focused on decision support rather than autonomous business execution.
+
+### Structured Retrieval
+
+Operational facts and KPIs are retrieved deterministically from the application/database layer.
+
+Examples include:
+
+- supplier risk;
+- delivery delays;
+- blocked stock;
+- performance indicators;
+- supplier prioritization.
+
+The LLM is not expected to calculate authoritative business data from memory.
+
+### Semantic Retrieval
+
+Unstructured knowledge is embedded and retrieved using pgvector similarity search.
+
+This enables retrieval of relevant documentation or knowledge for a natural-language question.
+
+### Combined RAG
+
+The RAG pipeline can combine:
+
+1. the user question;
+2. structured Supply Chain facts;
+3. semantically retrieved knowledge;
+4. LLM reasoning.
+
+The intended result is an explainable decision-support response grounded in platform data.
+
+---
+
+## 7. LLM Inference Scope
+
+Two inference environments are supported.
+
+### Local
+
+Ollama is used for local inference and development.
+
+Current local model:
+
+`llama3.2:3b`
+
+### AWS
+
+Amazon Bedrock is used for managed cloud inference.
+
+The provider is selected through configuration, keeping inference infrastructure separated from core business logic.
+
+### Explicit limitation
+
+The project does not claim to implement a complete enterprise model gateway with advanced dynamic routing, automatic multi-provider fallback, quota arbitration or a full model catalog.
+
+Those are production evolution topics.
+
+---
+
+## 8. Full-Stack Scope
+
+The project includes a web application layer and a platform Control Center.
+
+In scope:
+
+- interaction with backend APIs;
+- Supply Chain information;
+- AI interaction;
+- platform status;
+- local/cloud operational visibility;
+- authentication flows;
+- cloud synchronization controls;
+- observability and FinOps visibility.
+
+The frontend is intentionally functional and engineering-oriented.
+
+It is not intended to become a Power BI replacement or a design-heavy consumer product.
+
+---
+
+## 9. Local Platform Scope
+
+The local environment uses Docker and Docker Compose.
+
+In scope:
+
+- reproducible service startup;
+- PostgreSQL;
+- pgvector;
+- application services;
+- Ollama;
+- local observability components;
+- platform health inspection;
+- Control Center integration.
+
+The local environment is optimized for development, experimentation and demonstration.
+
+---
+
+## 10. Kubernetes Scope
+
+Kubernetes is included to demonstrate container orchestration concepts and platform portability.
+
+Relevant concepts include:
+
+- deployments;
+- services;
+- container scheduling;
+- workload isolation;
+- horizontal scaling concepts;
+- declarative deployment.
+
+The project does not claim:
+
+- operation of a large production Kubernetes estate;
+- GPU/CUDA scheduling;
+- multi-cluster management;
+- enterprise Kubernetes governance;
+- long-term production SRE experience.
+
+The deployed AWS architecture currently uses ECS Fargate rather than EKS.
+
+This is intentional.
+
+---
+
+## 11. AWS Scope
+
+The AWS environment demonstrates a production-oriented cloud architecture.
+
+In scope:
+
+- CloudFront;
+- Application Load Balancer;
+- ECS Fargate;
+- RDS PostgreSQL;
+- pgvector;
+- Valkey;
+- Amazon Bedrock;
+- AWS Secrets Manager;
+- IAM;
+- networking and service isolation;
+- managed observability components;
+- autoscaling.
+
+### ECS scaling
+
+Current application scaling configuration:
+
+- minimum tasks: 2;
+- maximum tasks: 4;
+- target CPU utilization: 60%;
+- task CPU: 512;
+- task memory: 2048 MB.
+
+This demonstrates redundancy and horizontal autoscaling without claiming enterprise-scale traffic validation.
+
+---
+
+## 12. Hybrid Local-to-AWS Scope
+
+The project explicitly demonstrates a hybrid workflow.
+
+Local:
+
+- FastAPI;
+- PostgreSQL / pgvector;
+- Ollama;
+- Docker;
+- local observability;
+- Control Center.
+
+AWS:
+
+- ECS Fargate;
+- RDS PostgreSQL / pgvector;
+- Valkey;
+- Bedrock;
+- cloud observability.
+
+Local-to-cloud synchronization is protected rather than exposed as an unrestricted operation.
+
+This architecture demonstrates how local AI development can coexist with a controlled cloud runtime.
+
+---
+
+## 13. Security Scope
+
+Security is part of the architecture.
+
+Implemented or demonstrated controls include:
+
+- AWS IAM;
+- AWS Secrets Manager;
+- server-side sessions;
+- WebAuthn;
+- passkeys;
+- Touch ID on supported Apple devices;
+- authenticated cloud operations;
+- protected local-to-AWS synchronization;
+- cloud network separation and access controls.
+
+The project does not claim formal certification, penetration testing or enterprise security accreditation.
+
+---
+
+## 14. Observability Scope
+
+Observability covers both conventional application telemetry and AI-specific execution.
+
+In scope:
+
+- OpenTelemetry;
+- Prometheus-compatible metrics;
+- Amazon Managed Service for Prometheus;
+- Grafana;
+- tracing;
+- health checks;
+- RAG metrics;
+- AI pipeline spans.
+
+Examples of AI metrics include:
+
+- `rag_requests_total`;
+- `rag_errors_total`;
+- `rag_request_duration_seconds`.
+
+Relevant trace operations include semantic search, embedding generation, pgvector search and LLM inference.
+
+The objective is to avoid treating the AI pipeline as a black box.
+
+---
+
+## 15. FinOps Scope
+
+Cloud cost awareness is included as an operational concern.
+
+The project includes FinOps visibility intended to connect:
+
+- AWS services;
+- resource usage;
+- infrastructure architecture;
+- AI/cloud consumption;
+- operational cost.
+
+The goal is visibility and engineering awareness, not a complete enterprise financial-management platform.
+
+---
+
+## 16. Infrastructure as Code
+
+Terraform manages the AWS infrastructure.
+
+In scope:
+
+- version-controlled infrastructure;
+- reproducible provisioning;
+- explicit dependencies;
+- reviewable cloud changes;
+- AWS application infrastructure;
+- observability infrastructure.
+
+Terraform definitions are stored under `terraform/aws/`.
+
+---
+
+## 17. CI/CD Scope
+
+GitHub Actions provides CI/CD automation.
+
+The pipeline complements:
+
+- application development;
+- automated validation;
+- container workflows;
+- infrastructure delivery practices.
+
+The project demonstrates the delivery lifecycle without claiming to reproduce a large organization's approval, release-management or change-management processes.
+
+---
+
+## 18. Platform Control Center
+
+The Control Center is the operational convergence point of the project.
+
+It exposes or consolidates visibility into multiple layers:
+
+- application;
+- database;
+- vector capabilities;
+- LLM services;
+- containers;
+- authentication;
+- observability;
+- cloud synchronization;
+- AWS services;
+- FinOps.
+
+Its role is to make the platform understandable and operable from a coherent interface.
+
+---
+
+## 19. Explicitly Out of Scope
+
+The current project does not claim to provide:
+
+- a full ERP or SAP replacement;
+- a complete BI platform;
+- large-scale production Kubernetes operations;
+- NVIDIA GPU / CUDA workload scheduling;
+- enterprise multi-cloud orchestration;
+- MLflow-based model lifecycle management;
+- complete ML training and automated retraining pipelines;
+- a complete enterprise prompt/model registry;
+- advanced dynamic model routing and automatic provider fallback;
+- a complete MCP / multi-agent ecosystem;
+- autonomous execution of critical Supply Chain decisions;
+- complete multi-region disaster recovery;
+- enterprise-scale load validation;
+- formal security certification;
+- years of production operational history.
+
+These limitations are deliberate and should not be represented as implemented functionality.
+
+---
+
+## 20. Production Evolution
+
+Natural next steps for a larger production platform include:
+
+- advanced model routing and fallback;
+- prompt and model version management;
+- automated LLM evaluation;
+- MCP and agent tooling;
+- deeper LLMOps / MLOps capabilities;
+- GPU-enabled workloads where justified;
+- advanced Kubernetes operations;
+- multi-region resilience;
+- disaster recovery automation;
+- enterprise load and resilience testing;
+- expanded security governance;
+- richer cost optimization.
+
+These are extensions of the current architecture, not requirements for the interview demonstrator.
+
+---
+
+## 21. Current Project State
+
+**Status: INTERVIEW FREEZE**
+
+The implementation is frozen.
+
+Allowed work during the freeze:
+
+- documentation;
+- architecture review;
+- demo preparation;
+- validation of existing functionality;
+- interview preparation.
+
+Not planned during the freeze:
+
+- new infrastructure;
+- new platform features;
+- speculative technologies added only to match job-description keywords;
+- risky refactoring.
+
+The objective is now to demonstrate and explain the existing platform clearly and accurately.
+
+---
+
+## 22. Professional Positioning
+
+The platform deliberately crosses several engineering domains:
+
+- backend engineering;
+- full-stack AI application engineering;
+- AI / RAG engineering;
+- AI platform engineering;
+- cloud/platform engineering;
+- DevOps / infrastructure as code;
+- observability;
+- security;
+- FinOps.
+
+The project does not attempt to claim expert-level production experience in every one of these areas.
+
+Its value is the ability to connect them into one working, understandable system around a real business use case.
+
+---
+
+## 23. Definition of Success
+
+The project is successful if it demonstrates the ability to explain and operate the complete path:
+
+```text
+Business problem
+      ↓
+Operational data
+      ↓
+FastAPI / APIs
+      ↓
+PostgreSQL
+      ↓
+Docker
+      ↓
+Full-stack application
+      ↓
+RAG / pgvector
+      ↓
+Local and cloud LLM inference
+      ↓
+Cloud infrastructure
+      ↓
+Security
+      ↓
+Observability
+      ↓
+FinOps
+      ↓
+Operational Control Center
+```
+
+The key outcome is not the number of technologies used.
+
+It is the coherence between the business problem, the AI application and the platform required to operate it.
