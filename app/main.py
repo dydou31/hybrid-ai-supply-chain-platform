@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, Response, HTTPException, Depends
 from prometheus_fastapi_instrumentator import Instrumentator
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from app.observability.tracing import setup_tracing
+from app.observability.finops import start_finops_collector
 from datetime import datetime, timedelta, timezone
 import os
 import hashlib
@@ -45,6 +46,10 @@ app = FastAPI(
     title="Hybrid AI Supply Chain Platform",
     version="0.1.0"
 )
+
+# Start the AWS FinOps metrics collector.
+# It automatically stays disabled in the local Ollama environment.
+start_finops_collector()
 
 app.add_middleware(
     CORSMiddleware,

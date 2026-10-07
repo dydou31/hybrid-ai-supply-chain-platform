@@ -980,3 +980,42 @@ resource "aws_prometheus_workspace" "main" {
     Name = "hybrid-ai-prometheus"
   }
 }
+# ---------------------------------------------------------------------------
+# FinOps — read AWS cost data for Prometheus/Grafana metrics
+# ---------------------------------------------------------------------------
+
+resource "aws_iam_role_policy" "ecs_cost_explorer_read" {
+  name = "hybrid-ai-ecs-cost-explorer-read"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ce:GetCostAndUsage"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "ecs_billing_credits_read" {
+  name = "hybrid-ai-ecs-billing-credits-read"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "billing:GetCredits"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}

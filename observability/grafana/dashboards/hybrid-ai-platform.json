@@ -448,7 +448,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "up{job=\"fastapi\"}",
+                        "expr": "clamp_max(sum(count_over_time(http_requests_total[5m])), 1) or vector(0)",
                         "legendFormat": "__auto",
                         "range": true
                       },
@@ -547,7 +547,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "rag_requests_total{job=\"fastapi\"}",
+                        "expr": "sum(rag_requests_total) or vector(0)",
                         "legendFormat": "__auto",
                         "range": true
                       },
@@ -935,7 +935,11 @@
       }
     },
     "preload": false,
-    "tags": [],
+    "tags": [
+      "aws",
+      "observability",
+      "hybrid-ai"
+    ],
     "timeSettings": {
       "autoRefresh": "",
       "autoRefreshIntervals": [
@@ -951,12 +955,12 @@
         "1d"
       ],
       "fiscalYearStartMonth": 0,
-      "from": "2026-09-26T15:21:41.435Z",
+      "from": "now-1h",
       "hideTimepicker": false,
       "timezone": "browser",
-      "to": "2026-09-26T21:21:41.435Z"
+      "to": "now"
     },
-    "title": "Hybrid AI Platform - Observability",
+    "title": "Hybrid AI Platform — Observability",
     "variables": []
   }
 }
