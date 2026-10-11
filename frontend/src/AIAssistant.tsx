@@ -1,3 +1,6 @@
+import RAGPipelineExplorer from './RAGPipelineExplorer'
+import { streamRAG } from './ragStream'
+import type { RAGEvent } from './ragStream'
 import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { FormEvent } from 'react'
@@ -27,6 +30,7 @@ function AIAssistant() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [displayedAnswer, setDisplayedAnswer] = useState('')
+  const [ragEvents, setRagEvents] = useState<RAGEvent[]>([])
 
   useEffect(() => {
     const fullAnswer = response?.answer ?? ''
@@ -61,24 +65,52 @@ function AIAssistant() {
     setLoading(true)
     setError('')
     setResponse(null)
+    setRagEvents([])
 
     try {
-      const apiResponse = await fetch(`${API_URL}/ai/ask`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          question: question.trim(),
-        }),
-      })
+      if (IS_AWS) {
+        const apiResponse = await fetch(`${API_URL}/ai/ask`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            question: question.trim(),
+          }),
+        })
 
-      if (!apiResponse.ok) {
-        throw new Error('AI request failed')
+        if (!apiResponse.ok) {
+          throw new Error('AI request failed')
+        }
+
+        const data: AIResponse = await apiResponse.json()
+        setResponse(data)
+      } else {
+        let completed = false
+
+        await streamRAG(API_URL, question.trim(), (ragEvent) => {
+          setRagEvents((previous) => [...previous, ragEvent])
+
+          if (ragEvent.event === 'request.failed') {
+            throw new Error('RAG pipeline failed')
+          }
+
+          if (ragEvent.event === 'request.completed') {
+            const result = ragEvent.data.result as AIResponse | undefined
+
+            if (!result || typeof result.answer !== 'string') {
+              throw new Error('Invalid RAG response')
+            }
+
+            completed = true
+            setResponse(result)
+          }
+        })
+
+        if (!completed) {
+          throw new Error('RAG stream ended without completion')
+        }
       }
-
-      const data: AIResponse = await apiResponse.json()
-      setResponse(data)
     } catch {
       setError(
         IS_AWS
@@ -275,6 +307,7 @@ function AIAssistant() {
           )}
         </div>
       </div>
+      <RAGPipelineExplorer events={ragEvents} />
     </section>
   )
 }

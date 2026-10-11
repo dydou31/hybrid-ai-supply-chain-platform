@@ -1124,7 +1124,7 @@ function Platform() {
                   APPLICATION
                 </div>
 
-                <div className="architecture-layout">
+                <div className="architecture-application">
                   <ArchitectureNodeCard
                     id="cloudfront"
                     nodes={nodes}

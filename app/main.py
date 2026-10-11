@@ -47,6 +47,27 @@ app = FastAPI(
     version="0.1.0"
 )
 
+
+class AIRequestTimingMiddleware:
+    """Record when the AI streaming request enters the ASGI application."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if (
+            scope["type"] == "http"
+            and scope.get("path") == "/ai/ask/stream"
+        ):
+            from time import perf_counter_ns
+
+            scope["ai_request_start_ns"] = perf_counter_ns()
+
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(AIRequestTimingMiddleware)
+
 # Start the AWS FinOps metrics collector.
 # It automatically stays disabled in the local Ollama environment.
 start_finops_collector()

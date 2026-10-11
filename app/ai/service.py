@@ -1,3 +1,5 @@
+from time import perf_counter
+from typing import Callable, Optional
 import os
 
 import boto3
@@ -31,7 +33,10 @@ BEDROCK_MODEL = os.getenv(
 tracer = trace.get_tracer(__name__)
 
 
-def generate_with_ollama(prompt: str) -> str:
+def generate_with_ollama(
+    prompt: str,
+    metrics: Optional[dict] = None,
+) -> str:
     with tracer.start_as_current_span("llm.ollama.generate") as span:
         span.set_attribute("llm.provider", "ollama")
         span.set_attribute("llm.model", OLLAMA_MODEL)
@@ -48,10 +53,44 @@ def generate_with_ollama(prompt: str) -> str:
 
         response.raise_for_status()
 
-        return response.json()["response"].strip()
+        payload = response.json()
+
+        if metrics is not None:
+            metrics.update({
+                "provider": "ollama",
+                "model": OLLAMA_MODEL,
+            })
+
+            input_tokens = payload.get("prompt_eval_count")
+            output_tokens = payload.get("eval_count")
+            eval_duration = payload.get("eval_duration")
+
+            if isinstance(input_tokens, int):
+                metrics["input_tokens"] = input_tokens
+
+            if isinstance(output_tokens, int):
+                metrics["output_tokens"] = output_tokens
+
+            if isinstance(input_tokens, int) and isinstance(output_tokens, int):
+                metrics["total_tokens"] = input_tokens + output_tokens
+
+            if (
+                isinstance(output_tokens, int)
+                and isinstance(eval_duration, (int, float))
+                and eval_duration > 0
+            ):
+                metrics["tokens_per_second"] = round(
+                    output_tokens / (eval_duration / 1_000_000_000),
+                    2,
+                )
+
+        return payload["response"].strip()
 
 
-def generate_with_bedrock(prompt: str) -> str:
+def generate_with_bedrock(
+    prompt: str,
+    metrics: Optional[dict] = None,
+) -> str:
     with tracer.start_as_current_span("llm.bedrock.converse") as span:
         span.set_attribute("llm.provider", "bedrock")
         span.set_attribute("llm.model", BEDROCK_MODEL)
@@ -79,15 +118,35 @@ def generate_with_bedrock(prompt: str) -> str:
             },
         )
 
+        if metrics is not None:
+            metrics.update({
+                "provider": "bedrock",
+                "model": BEDROCK_MODEL,
+            })
+
+            usage = response.get("usage", {})
+
+            for source_key, target_key in (
+                ("inputTokens", "input_tokens"),
+                ("outputTokens", "output_tokens"),
+                ("totalTokens", "total_tokens"),
+            ):
+                value = usage.get(source_key)
+                if isinstance(value, int):
+                    metrics[target_key] = value
+
         return response["output"]["message"]["content"][0]["text"].strip()
 
 
-def generate_answer(prompt: str) -> str:
+def generate_answer(
+    prompt: str,
+    metrics: Optional[dict] = None,
+) -> str:
     if LLM_PROVIDER == "ollama":
-        return generate_with_ollama(prompt)
+        return generate_with_ollama(prompt, metrics=metrics)
 
     if LLM_PROVIDER == "bedrock":
-        return generate_with_bedrock(prompt)
+        return generate_with_bedrock(prompt, metrics=metrics)
 
     raise ValueError(
         f"Unsupported LLM_PROVIDER: {LLM_PROVIDER}. "
@@ -95,13 +154,49 @@ def generate_answer(prompt: str) -> str:
     )
 
 
-def ask_rag(query: str, limit: int = 3) -> dict:
+def ask_rag(
+    query: str,
+    limit: int = 3,
+    on_event: Optional[Callable[[str, dict], None]] = None,
+) -> dict:
     RAG_REQUESTS_TOTAL.inc()
 
     try:
         with RAG_REQUEST_DURATION_SECONDS.time():
-            documents = semantic_search(query, limit=limit)
-            structured_context = get_relevant_structured_context(query)
+            documents = semantic_search(
+                query,
+                limit=limit,
+                on_event=on_event,
+            )
+
+            if on_event:
+                on_event("structured.started", {})
+
+            structured_start = perf_counter()
+
+            try:
+                structured_context = get_relevant_structured_context(query)
+            except Exception as exc:
+                if on_event:
+                    on_event("structured.failed", {
+                        "duration_ms": round(
+                            (perf_counter() - structured_start) * 1000, 2
+                        ),
+                        "error_type": type(exc).__name__,
+                    })
+                raise
+
+            if on_event:
+                on_event("structured.completed", {
+                    "duration_ms": round(
+                        (perf_counter() - structured_start) * 1000, 2
+                    ),
+                })
+
+            if on_event:
+                on_event("prompt.started", {})
+
+            prompt_start = perf_counter()
 
             rag_context = "\n\n".join(
                 f"[{doc['title']}]\n{doc['content']}"
@@ -195,7 +290,39 @@ QUESTION:
 ANSWER:
 """
 
-            answer = generate_answer(prompt)
+            if on_event:
+                on_event("prompt.completed", {
+                    "duration_ms": round(
+                        (perf_counter() - prompt_start) * 1000, 6
+                    ),
+                })
+
+            if on_event:
+                on_event("llm.started", {})
+
+            llm_start = perf_counter()
+
+            llm_metrics = {}
+
+            try:
+                answer = generate_answer(prompt, metrics=llm_metrics)
+            except Exception as exc:
+                if on_event:
+                    on_event("llm.failed", {
+                        "duration_ms": round(
+                            (perf_counter() - llm_start) * 1000, 2
+                        ),
+                        "error_type": type(exc).__name__,
+                    })
+                raise
+
+            if on_event:
+                on_event("llm.completed", {
+                    "duration_ms": round(
+                        (perf_counter() - llm_start) * 1000, 2
+                    ),
+                    **llm_metrics,
+                })
 
             data_sources = [
                 {

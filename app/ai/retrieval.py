@@ -1,4 +1,6 @@
 from opentelemetry import trace
+from time import perf_counter
+from typing import Callable, Optional
 
 from app.database import SessionLocal
 from app.ai.models import KnowledgeDocument
@@ -11,14 +13,42 @@ def semantic_search(
     query: str,
     limit: int = 3,
     min_similarity: float = 0.40,
+    on_event: Optional[Callable[[str, dict], None]] = None,
 ):
     with tracer.start_as_current_span("rag.semantic_search") as span:
         span.set_attribute("rag.limit", limit)
 
-        with tracer.start_as_current_span("embedding.generate"):
-            query_embedding = generate_embedding(query)
+        if on_event:
+            on_event("embedding.started", {})
+
+        embedding_start = perf_counter()
+
+        try:
+            with tracer.start_as_current_span("embedding.generate"):
+                query_embedding = generate_embedding(query)
+        except Exception as exc:
+            if on_event:
+                on_event("embedding.failed", {
+                    "duration_ms": round((perf_counter() - embedding_start) * 1000, 2),
+                    "error_type": type(exc).__name__,
+                })
+            raise
+
+        if on_event:
+            on_event("embedding.completed", {
+                "duration_ms": round((perf_counter() - embedding_start) * 1000, 2),
+                "dimensions": len(query_embedding),
+            })
 
         db = SessionLocal()
+
+        if on_event:
+            on_event("pgvector.started", {
+                "limit": limit,
+                "min_similarity": min_similarity,
+            })
+
+        search_start = perf_counter()
 
         try:
             with tracer.start_as_current_span("pgvector.search") as search_span:
@@ -63,7 +93,32 @@ def semantic_search(
                 len(documents),
             )
 
+            if on_event:
+                on_event("pgvector.completed", {
+                    "duration_ms": round(
+                        (perf_counter() - search_start) * 1000, 2
+                    ),
+                    "documents_count": len(documents),
+                    "scores": [
+                        {
+                            "title": doc["title"],
+                            "similarity": doc["similarity"],
+                        }
+                        for doc in documents
+                    ],
+                })
+
             return documents
+
+        except Exception as exc:
+            if on_event:
+                on_event("pgvector.failed", {
+                    "duration_ms": round(
+                        (perf_counter() - search_start) * 1000, 2
+                    ),
+                    "error_type": type(exc).__name__,
+                })
+            raise
 
         finally:
             db.close()
