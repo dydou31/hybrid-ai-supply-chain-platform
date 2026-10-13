@@ -1,3 +1,5 @@
+import os
+
 from opentelemetry import trace
 from time import perf_counter
 from typing import Callable, Optional
@@ -35,10 +37,16 @@ def semantic_search(
             raise
 
         if on_event:
-            on_event("embedding.completed", {
+            embedding_payload = {
                 "duration_ms": round((perf_counter() - embedding_start) * 1000, 2),
                 "dimensions": len(query_embedding),
-            })
+                "model": "all-MiniLM-L6-v2",
+            }
+
+            if (os.getenv("RAG_VECTOR_DEBUG", "false").lower() == "true" and os.getenv("APP_ENV", "").lower() == "local"):
+                embedding_payload["vector"] = query_embedding
+
+            on_event("embedding.completed", embedding_payload)
 
         db = SessionLocal()
 
@@ -92,6 +100,72 @@ def semantic_search(
                 "rag.documents_relevant",
                 len(documents),
             )
+
+            if on_event and (os.getenv("RAG_VECTOR_DEBUG", "false").lower() == "true" and os.getenv("APP_ENV", "").lower() == "local"):
+                import math
+
+                diagnostic_results = (
+                    db.query(KnowledgeDocument, distance.label("distance"))
+                    .filter(KnowledgeDocument.embedding.isnot(None))
+                    .order_by(distance)
+                    .limit(20)
+                    .all()
+                )
+
+                vector_diagnostics = []
+
+                for rank, (document, pg_distance) in enumerate(
+                    diagnostic_results, start=1
+                ):
+                    document_vector = list(document.embedding)
+
+                    products = [
+                        float(a) * float(b)
+                        for a, b in zip(query_embedding, document_vector)
+                    ]
+
+                    dot_product = sum(products)
+
+                    query_norm = math.sqrt(
+                        sum(float(x) ** 2 for x in query_embedding)
+                    )
+
+                    document_norm = math.sqrt(
+                        sum(float(x) ** 2 for x in document_vector)
+                    )
+
+                    similarity = (
+                        dot_product / (query_norm * document_norm)
+                        if query_norm and document_norm
+                        else 0.0
+                    )
+
+                    pgvector_similarity = 1 - float(pg_distance)
+
+                    vector_diagnostics.append({
+                        "id": document.id,
+                        "title": document.title,
+                        "rank": rank,
+                        "selected": (
+                            pgvector_similarity >= min_similarity
+                            and rank <= limit
+                        ),
+                        "query_vector": query_embedding,
+                        "document_vector": document_vector,
+                        "products": products,
+                        "dot_product": dot_product,
+                        "query_norm": query_norm,
+                        "document_norm": document_norm,
+                        "similarity": similarity,
+                        "pgvector_similarity": pgvector_similarity,
+                        "distance": float(pg_distance),
+                    })
+
+                on_event("pgvector.diagnostics", {
+                    "min_similarity": min_similarity,
+                    "limit": limit,
+                    "documents": vector_diagnostics,
+                })
 
             if on_event:
                 on_event("pgvector.completed", {
