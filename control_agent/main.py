@@ -1,3 +1,5 @@
+import uuid
+import threading
 import base64
 import json
 import os
@@ -8,6 +10,7 @@ import urllib.request
 from pathlib import Path
 
 from dotenv import load_dotenv
+from control_agent.aws_cloud import get_cloud_operation, start_cloud_operation
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pwdlib import PasswordHash
@@ -29,6 +32,16 @@ from webauthn.helpers.structs import (
 
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
+
+
+# AWS Cloud Control
+ECS_CACHE_TTL = 15
+_ecs_cache = {"timestamp": 0.0, "data": None}
+_ecs_cache_lock = threading.Lock()
+
+AWS_TERRAFORM_DIR = PROJECT_DIR / "terraform" / "aws"
+AWS_CLOUD_SCRIPT = PROJECT_DIR / "scripts" / "cloud-control.sh"
+AWS_CLOUD_PROFILE = "hybrid-ai-terraform"
 
 load_dotenv(PROJECT_DIR / ".env")
 
@@ -293,6 +306,10 @@ def validate_service_action(
     # Special authenticated action:
     # local business-data promotion to AWS.
     if service == "aws-sync" and action == "sync_aws":
+        return
+
+    # AWS Cloud Control: actions autorisées après authentification.
+    if service == "aws-cloud" and action in {"cloud_on", "cloud_off"}:
         return
 
     if service not in ALLOWED_SERVICES:
@@ -703,6 +720,14 @@ def webauthn_authenticate_verify(
 
     if action == "sync_aws":
         return run_aws_sync()
+
+    if service == "aws-cloud" and action in {"cloud_on", "cloud_off"}:
+        try:
+            return start_cloud_operation(
+                "on" if action == "cloud_on" else "off"
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
 
     return run_compose_action(
         action,
@@ -1128,3 +1153,215 @@ def start_service(
         "start",
         service,
     )
+
+
+# ============================================================
+# AWS CLOUD CONTROL
+# ============================================================
+
+@app.get("/cloud/status")
+def cloud_status():
+    operation = get_cloud_operation()
+
+    try:
+        result = subprocess.run(
+            [
+                "aws", "ssm", "get-parameter",
+                "--name", "/hybrid-ai/cloud/mode",
+                "--query", "Parameter.Value",
+                "--output", "text",
+                "--region", "eu-west-3",
+                "--profile", AWS_CLOUD_PROFILE,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=True,
+        )
+
+        mode = result.stdout.strip().upper()
+
+        if mode not in {"ON", "OFF", "TRANSITION"}:
+            mode = "UNKNOWN"
+
+    except (subprocess.SubprocessError, OSError):
+        mode = "UNKNOWN"
+
+    ecs = {
+        "desired": None,
+        "running": None,
+        "pending": None,
+        "status": "unknown",
+    }
+
+    try:
+        with _ecs_cache_lock:
+            cache_valid = (
+                _ecs_cache["data"] is not None
+                and time.monotonic() - _ecs_cache["timestamp"] < ECS_CACHE_TTL
+            )
+
+            if cache_valid:
+                ecs = _ecs_cache["data"].copy()
+            else:
+                ecs = _fetch_ecs_status()
+                _ecs_cache["data"] = ecs.copy()
+                _ecs_cache["timestamp"] = time.monotonic()
+
+    except (subprocess.SubprocessError, OSError, ValueError, TypeError):
+        pass
+
+    return {
+        **operation,
+        "cloud_mode": mode,
+        "ecs": ecs,
+    }
+
+
+def _fetch_ecs_status():
+    ecs = {
+        "desired": None,
+        "running": None,
+        "pending": None,
+        "status": "unknown",
+    }
+
+    try:
+        ecs_result = subprocess.run(
+            [
+                "aws", "ecs", "describe-services",
+                "--cluster", "hybrid-ai-cluster",
+                "--services", "hybrid-ai-api-service",
+                "--region", "eu-west-3",
+                "--profile", AWS_CLOUD_PROFILE,
+                "--query",
+                "services[0].{desired:desiredCount,running:runningCount,pending:pendingCount}",
+                "--output", "json",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        )
+
+        ecs_data = json.loads(ecs_result.stdout)
+
+        if ecs_data and all(
+            isinstance(ecs_data.get(key), int)
+            for key in ("desired", "running", "pending")
+        ):
+            ecs.update(ecs_data)
+
+            ecs["status"] = (
+                "healthy"
+                if ecs["desired"] > 0
+                and ecs["running"] == ecs["desired"]
+                and ecs["pending"] == 0
+                else "degraded"
+            )
+
+    except (subprocess.SubprocessError, OSError, ValueError, TypeError):
+        pass
+
+    alb = {
+        "healthy": None,
+        "total": None,
+        "zones": [],
+        "status": "unknown",
+    }
+
+    try:
+        tg_result = subprocess.run(
+            [
+                "aws", "elbv2", "describe-target-groups",
+                "--names", "hybrid-ai-api-tg",
+                "--region", "eu-west-3",
+                "--profile", AWS_CLOUD_PROFILE,
+                "--query", "TargetGroups[0].TargetGroupArn",
+                "--output", "text",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        )
+
+        target_group_arn = tg_result.stdout.strip()
+
+        if not target_group_arn or target_group_arn == "None":
+            raise ValueError("Target Group introuvable")
+
+        alb_result = subprocess.run(
+            [
+                "aws", "elbv2", "describe-target-health",
+                "--target-group-arn", target_group_arn,
+                "--region", "eu-west-3",
+                "--profile", AWS_CLOUD_PROFILE,
+                "--output", "json",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        )
+
+        targets = json.loads(alb_result.stdout).get(
+            "TargetHealthDescriptions", []
+        )
+
+        active_targets = [
+            target for target in targets
+            if target.get("TargetHealth", {}).get("State")
+            != "draining"
+        ]
+
+        healthy_targets = [
+            target for target in active_targets
+            if target.get("TargetHealth", {}).get("State")
+            == "healthy"
+        ]
+
+        alb["healthy"] = len(healthy_targets)
+        alb["total"] = len(active_targets)
+        alb["zones"] = sorted({
+            target["Target"]["AvailabilityZone"]
+            for target in healthy_targets
+            if target.get("Target", {}).get("AvailabilityZone")
+        })
+
+        alb["status"] = (
+            "healthy"
+            if alb["total"] > 0
+            and alb["healthy"] == alb["total"]
+            else "degraded"
+        )
+
+    except (subprocess.SubprocessError, OSError, ValueError, TypeError, KeyError):
+        pass
+
+    ecs["alb"] = alb
+    return ecs
+
+
+@app.post("/cloud/on")
+def cloud_on(
+    x_admin_password: str | None = Header(default=None),
+):
+    verify_admin_password(x_admin_password)
+
+    try:
+        return start_cloud_operation("on")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@app.post("/cloud/off")
+def cloud_off(
+    x_admin_password: str | None = Header(default=None),
+):
+    verify_admin_password(x_admin_password)
+
+    try:
+        return start_cloud_operation("off")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))

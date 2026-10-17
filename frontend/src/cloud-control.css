@@ -1,0 +1,54 @@
+
+.cloud-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 165px;
+  min-height: 46px;
+  padding: 12px 22px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cloud-action-on {
+  color: #4ade80;
+  background: rgba(34, 197, 94, 0.09);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.cloud-action-on:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: #4ade80;
+  box-shadow: 0 0 22px rgba(34, 197, 94, 0.14);
+  transform: translateY(-2px);
+}
+
+.cloud-action-off {
+  color: #fb7185;
+  background: rgba(244, 63, 94, 0.09);
+  border: 1px solid rgba(244, 63, 94, 0.35);
+}
+
+.cloud-action-off:hover:not(:disabled) {
+  background: rgba(244, 63, 94, 0.18);
+  border-color: #fb7185;
+  box-shadow: 0 0 22px rgba(244, 63, 94, 0.14);
+  transform: translateY(-2px);
+}
+
+.cloud-action-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .cloud-action-button {
+    flex: 1;
+    min-width: 130px;
+  }
+}

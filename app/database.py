@@ -1,6 +1,7 @@
 import os
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.orm import Session
 
@@ -15,9 +16,13 @@ if not DATABASE_URL:
     db_password = os.getenv("DB_PASSWORD")
 
     if all([db_host, db_name, db_user, db_password]):
-        DATABASE_URL = (
-            f"postgresql://{db_user}:{db_password}"
-            f"@{db_host}:{db_port}/{db_name}"
+        DATABASE_URL = URL.create(
+            drivername="postgresql+psycopg",
+            username=db_user,
+            password=db_password,
+            host=db_host,
+            port=int(db_port),
+            database=db_name,
         )
     else:
         DATABASE_URL = "postgresql://dylan:dylan@localhost:5432/hybrid_ai"

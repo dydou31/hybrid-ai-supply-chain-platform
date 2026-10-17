@@ -29,6 +29,7 @@ resource "aws_security_group" "grafana" {
 }
 
 resource "aws_lb_target_group" "grafana" {
+  count       = (var.cloud_enabled || var.cloud_detach_only) ? 1 : 0
   name        = "hybrid-ai-grafana-tg"
   port        = 3000
   protocol    = "HTTP"
@@ -48,12 +49,13 @@ resource "aws_lb_target_group" "grafana" {
 }
 
 resource "aws_lb_listener_rule" "grafana" {
-  listener_arn = aws_lb_listener.http.arn
+  count        = (var.cloud_enabled || var.cloud_detach_only) ? 1 : 0
+  listener_arn = aws_lb_listener.http[0].arn
   priority     = 50
 
   action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.grafana.arn
+    target_group_arn = aws_lb_target_group.grafana[0].arn
   }
 
   condition {
@@ -168,10 +170,14 @@ resource "aws_ecs_service" "grafana" {
     assign_public_ip = true
   }
 
-  load_balancer {
-    target_group_arn = aws_lb_target_group.grafana.arn
-    container_name   = "hybrid-ai-grafana"
-    container_port   = 3000
+  dynamic "load_balancer" {
+    for_each = var.cloud_enabled ? [1] : []
+
+    content {
+      target_group_arn = aws_lb_target_group.grafana[0].arn
+      container_name   = "hybrid-ai-grafana"
+      container_port   = 3000
+    }
   }
 
   health_check_grace_period_seconds = 60
@@ -179,4 +185,8 @@ resource "aws_ecs_service" "grafana" {
   depends_on = [
     aws_lb_listener_rule.grafana
   ]
+
+  lifecycle {
+    ignore_changes = [desired_count]
+  }
 }

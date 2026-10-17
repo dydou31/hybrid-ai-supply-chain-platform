@@ -25,3 +25,27 @@ venv/
 
 # WebAuthn / local credentials
 control_agent/.webauthn_credential.json
+
+# Local infrastructure backups
+/backups/
+
+# Terraform plans and local database backups
+*.tfplan
+tfplan
+*.dump
+
+# Local development backups
+*.bak
+*.bak-*
+*.before-*
+*.simulation.bak
+
+# Runtime logs and operation history
+/logs/cloud/
+*.log
+
+# Terraform generated archives
+terraform/aws/lambda/*.zip
+
+# Local temporary files
+*.tmp

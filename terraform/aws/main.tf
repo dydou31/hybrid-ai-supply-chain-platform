@@ -43,7 +43,7 @@ resource "aws_ecs_task_definition" "api" {
   container_definitions = jsonencode([
     {
       name      = "hybrid-ai-api"
-      image     = "${aws_ecr_repository.api.repository_url}:latest"
+      image     = "${aws_ecr_repository.api.repository_url}:aws-rds-fix-v2-20261017"
       essential = true
 
       environment = [
@@ -65,7 +65,7 @@ resource "aws_ecs_task_definition" "api" {
         },
         {
           name  = "REDIS_URL"
-          value = "rediss://${aws_elasticache_replication_group.valkey.primary_endpoint_address}:6379/0"
+          value = (var.cloud_enabled || var.cloud_detach_only) ? "rediss://${aws_elasticache_replication_group.valkey[0].primary_endpoint_address}:6379/0" : ""
         },
         {
           name  = "OTEL_EXPORTER_OTLP_ENDPOINT"
@@ -93,6 +93,18 @@ resource "aws_ecs_task_definition" "api" {
         {
           name      = "SYNC_API_KEY"
           valueFrom = "arn:aws:secretsmanager:eu-west-3:021914193620:secret:hybrid-ai/sync-api-key-ACLl3L"
+        },
+        {
+          name      = "CLOUD_AUTH_USERNAME"
+          valueFrom = "arn:aws:secretsmanager:eu-west-3:021914193620:secret:hybrid-ai/cloud-auth-iMnTip:username::"
+        },
+        {
+          name      = "CLOUD_AUTH_PASSWORD"
+          valueFrom = "arn:aws:secretsmanager:eu-west-3:021914193620:secret:hybrid-ai/cloud-auth-iMnTip:password::"
+        },
+        {
+          name      = "CLOUD_SESSION_SECRET"
+          valueFrom = "arn:aws:secretsmanager:eu-west-3:021914193620:secret:hybrid-ai/cloud-auth-iMnTip:session_secret::"
         }
       ]
 
@@ -198,6 +210,10 @@ EOT
       }
     }
   ])
+  lifecycle {
+    ignore_changes = [container_definitions]
+  }
+
 }
 
 # ==========================================
@@ -356,6 +372,8 @@ resource "aws_security_group" "alb" {
 }
 
 resource "aws_lb" "api" {
+  count = (var.cloud_enabled || var.cloud_detach_only) ? 1 : 0
+
   name               = "hybrid-ai-alb"
   internal           = false
   load_balancer_type = "application"
@@ -368,6 +386,7 @@ resource "aws_lb" "api" {
 }
 
 resource "aws_lb_target_group" "api" {
+  count       = (var.cloud_enabled || var.cloud_detach_only) ? 1 : 0
   name        = "hybrid-ai-api-tg"
   port        = 8000
   protocol    = "HTTP"
@@ -387,13 +406,14 @@ resource "aws_lb_target_group" "api" {
 }
 
 resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.api.arn
+  count             = (var.cloud_enabled || var.cloud_detach_only) ? 1 : 0
+  load_balancer_arn = aws_lb.api[0].arn
   port              = 80
   protocol          = "HTTP"
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.api.arn
+    target_group_arn = aws_lb_target_group.api[0].arn
   }
 }
 
@@ -423,11 +443,18 @@ resource "aws_security_group" "api" {
 }
 
 resource "aws_ecs_service" "api" {
+  enable_execute_command = true
+
   name            = "hybrid-ai-api-service"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.api.arn
   desired_count   = 2
   launch_type     = "FARGATE"
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
 
   network_configuration {
     subnets          = [aws_subnet.public.id, aws_subnet.public_b.id]
@@ -435,20 +462,28 @@ resource "aws_ecs_service" "api" {
     assign_public_ip = true
   }
 
-  load_balancer {
-    target_group_arn = aws_lb_target_group.api.arn
-    container_name   = "hybrid-ai-api"
-    container_port   = 8000
+  dynamic "load_balancer" {
+    for_each = var.cloud_enabled ? [1] : []
+
+    content {
+      target_group_arn = aws_lb_target_group.api[0].arn
+      container_name   = "hybrid-ai-api"
+      container_port   = 8000
+    }
   }
 
   health_check_grace_period_seconds = 60
 
   depends_on = [aws_lb_listener.http]
+
+  lifecycle {
+    ignore_changes = [desired_count, task_definition]
+  }
 }
 
 resource "aws_appautoscaling_target" "ecs_api" {
   max_capacity       = 4
-  min_capacity       = 2
+  min_capacity       = var.cloud_enabled ? 2 : 0
   resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.api.name}"
   scalable_dimension = "ecs:service:DesiredCount"
   service_namespace  = "ecs"
@@ -567,8 +602,9 @@ resource "aws_db_instance" "postgres" {
 
   backup_retention_period = 1
 
-  skip_final_snapshot = true
-  deletion_protection = false
+  skip_final_snapshot       = false
+  final_snapshot_identifier = "hybrid-ai-postgres-final"
+  deletion_protection       = true
 
   tags = {
     Name = "hybrid-ai-postgres"
@@ -593,7 +629,8 @@ resource "aws_iam_role_policy" "ecs_rds_secret" {
         ]
         Resource = [
           aws_db_instance.postgres.master_user_secret[0].secret_arn,
-          "arn:aws:secretsmanager:eu-west-3:021914193620:secret:hybrid-ai/sync-api-key-ACLl3L"
+          "arn:aws:secretsmanager:eu-west-3:021914193620:secret:hybrid-ai/sync-api-key-ACLl3L",
+          "arn:aws:secretsmanager:eu-west-3:021914193620:secret:hybrid-ai/cloud-auth-*"
         ]
       }
     ]
@@ -746,16 +783,20 @@ resource "aws_cloudfront_distribution" "frontend" {
     origin_access_control_id = aws_cloudfront_origin_access_control.frontend.id
   }
 
-  # FastAPI backend
-  origin {
-    domain_name = aws_lb.api.dns_name
-    origin_id   = "api-alb"
+  # FastAPI backend — uniquement en mode CLOUD ON
+  dynamic "origin" {
+    for_each = var.cloud_enabled ? [1] : []
 
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "http-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
+    content {
+      domain_name = aws_lb.api[0].dns_name
+      origin_id   = "api-alb"
+
+      custom_origin_config {
+        http_port              = 80
+        https_port             = 443
+        origin_protocol_policy = "http-only"
+        origin_ssl_protocols   = ["TLSv1.2"]
+      }
     }
   }
 
@@ -775,60 +816,68 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
 
-  ordered_cache_behavior {
-    path_pattern           = "/api/*"
-    target_origin_id       = "api-alb"
-    viewer_protocol_policy = "redirect-to-https"
+  dynamic "ordered_cache_behavior" {
+    for_each = var.cloud_enabled ? [1] : []
 
-    allowed_methods = [
-      "DELETE",
-      "GET",
-      "HEAD",
-      "OPTIONS",
-      "PATCH",
-      "POST",
-      "PUT"
-    ]
+    content {
+      path_pattern           = "/api/*"
+      target_origin_id       = "api-alb"
+      viewer_protocol_policy = "redirect-to-https"
 
-    cached_methods = ["GET", "HEAD"]
+      allowed_methods = [
+        "DELETE",
+        "GET",
+        "HEAD",
+        "OPTIONS",
+        "PATCH",
+        "POST",
+        "PUT"
+      ]
 
-    cache_policy_id = data.aws_cloudfront_cache_policy.caching_disabled.id
+      cached_methods = ["GET", "HEAD"]
 
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+      cache_policy_id = data.aws_cloudfront_cache_policy.caching_disabled.id
 
-    compress = true
+      origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+
+      compress = true
 
 
 
-    function_association {
-      event_type   = "viewer-request"
-      function_arn = aws_cloudfront_function.api_rewrite.arn
+      function_association {
+        event_type   = "viewer-request"
+        function_arn = aws_cloudfront_function.api_rewrite.arn
+      }
     }
   }
 
   # Grafana
-  ordered_cache_behavior {
-    path_pattern           = "/grafana/*"
-    target_origin_id       = "api-alb"
-    viewer_protocol_policy = "redirect-to-https"
+  dynamic "ordered_cache_behavior" {
+    for_each = var.cloud_enabled ? [1] : []
 
-    allowed_methods = [
-      "DELETE",
-      "GET",
-      "HEAD",
-      "OPTIONS",
-      "PATCH",
-      "POST",
-      "PUT"
-    ]
+    content {
+      path_pattern           = "/grafana/*"
+      target_origin_id       = "api-alb"
+      viewer_protocol_policy = "redirect-to-https"
 
-    cached_methods = ["GET", "HEAD"]
+      allowed_methods = [
+        "DELETE",
+        "GET",
+        "HEAD",
+        "OPTIONS",
+        "PATCH",
+        "POST",
+        "PUT"
+      ]
 
-    cache_policy_id = data.aws_cloudfront_cache_policy.caching_disabled.id
+      cached_methods = ["GET", "HEAD"]
 
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+      cache_policy_id = data.aws_cloudfront_cache_policy.caching_disabled.id
 
-    compress = true
+      origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+
+      compress = true
+    }
   }
 
 
@@ -943,6 +992,8 @@ resource "aws_security_group" "valkey" {
 # ==========================================
 
 resource "aws_elasticache_replication_group" "valkey" {
+  count = (var.cloud_enabled || var.cloud_detach_only) ? 1 : 0
+
   replication_group_id = "hybrid-ai-valkey"
   description          = "Valkey cache for Hybrid AI Supply Chain Platform"
 

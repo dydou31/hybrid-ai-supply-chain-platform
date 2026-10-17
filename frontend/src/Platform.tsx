@@ -1,3 +1,4 @@
+import "./cloud-control.css";
 import { useEffect, useState } from "react";
 import {
   SiDocker,
@@ -42,7 +43,7 @@ type DockerServicesStatus = {
 
 type NodeStatus = "live" | "down" | "starting" | "stopping" | "architecture";
 
-type ServiceAction = "start" | "stop" | "sync_aws";
+type ServiceAction = "start" | "stop" | "sync_aws" | "cloud_on" | "cloud_off";
 
 type PasskeyStatus = {
   configured: boolean;
@@ -50,6 +51,7 @@ type PasskeyStatus = {
 };
 
 type ControllableService =
+  | "aws-cloud"
   | "api"
   | "db"
   | "redis"
@@ -351,12 +353,64 @@ function Platform() {
     };
   }, []);
 
+  const [cloudOperation, setCloudOperation] = useState<{
+    operation_id: string | null;
+    action: string | null;
+    status: string;
+    started_at: string | null;
+    finished_at: string | null;
+    returncode: number | null;
+    cloud_mode?: "ON" | "OFF" | "TRANSITION" | "UNKNOWN";
+    ecs?: {
+      desired: number | null;
+      running: number | null;
+      pending: number | null;
+      status: "healthy" | "degraded" | "unknown";
+      alb?: {
+        healthy: number | null;
+        total: number | null;
+        zones: string[];
+        status: "healthy" | "degraded" | "unknown";
+      };
+    };
+  } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const refreshCloudOperation = async () => {
+      try {
+        const response = await fetch(`${CONTROL_AGENT_URL}/cloud/status`);
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        if (active) {
+          setCloudOperation(data);
+        }
+      } catch {
+        // Le Control Agent peut être temporairement indisponible.
+      }
+    };
+
+    void refreshCloudOperation();
+
+    const interval = window.setInterval(refreshCloudOperation, 2000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
   const executeServiceAction = async () => {
     if (!pendingAction || !adminPassword) return;
 
     const { service, action } = pendingAction;
 
     const isSync = action === "sync_aws";
+    const isCloud = service === "aws-cloud" && (action === "cloud_on" || action === "cloud_off");
 
     const transition =
       action === "start"
@@ -379,9 +433,11 @@ function Platform() {
     }
 
     try {
-      const url = isSync
-        ? `${CONTROL_AGENT_URL}/sync/aws`
-        : `${CONTROL_AGENT_URL}/services/${service}/${action}`;
+      const url = isCloud
+        ? `${CONTROL_AGENT_URL}/cloud/${action === "cloud_on" ? "on" : "off"}`
+        : isSync
+          ? `${CONTROL_AGENT_URL}/sync/aws`
+          : `${CONTROL_AGENT_URL}/services/${service}/${action}`;
 
       const response = await fetch(url, {
         method: "POST",
@@ -628,6 +684,14 @@ function Platform() {
       await new Promise((resolve) => window.setTimeout(resolve, 1000));
 
       await Promise.all([loadHealth(), loadDockerStatus()]);
+
+      if (service === "aws-cloud") {
+        const cloudResponse = await fetch(`${CONTROL_AGENT_URL}/cloud/status`);
+
+        if (cloudResponse.ok) {
+          setCloudOperation(await cloudResponse.json());
+        }
+      }
     } catch (error) {
       if (isSync) {
         setSyncStatus("error");
@@ -1080,6 +1144,157 @@ function Platform() {
           <strong>{IS_AWS ? "10s" : "1s"}</strong>
         </div>
       </div>
+
+
+      {/* AWS CLOUD CONTROL */}
+      {!IS_AWS && (
+        <div
+          className="card"
+          style={{
+            padding: 24,
+            marginBottom: 24,
+            borderRadius: 16,
+          }}
+        >
+          <h3 style={{ marginTop: 0 }}>☁️ AWS Cloud Control — On-Demand Infrastructure</h3>
+
+          <p style={{ opacity: 0.75 }}>
+            Manage your AWS infrastructure directly from the Control Center.
+          </p>
+
+          <div style={{ marginBottom: 16 }}>
+            <span>AWS Cloud Mode: </span>
+            <strong
+              style={{
+                color:
+                  cloudOperation?.cloud_mode === "OFF"
+                    ? "#ef4444"
+                    : cloudOperation?.cloud_mode === "ON"
+                      ? "#22c55e"
+                      : "#94a3b8",
+              }}
+            >
+              {cloudOperation?.cloud_mode ?? "UNKNOWN"}
+            </strong>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <span>ECS / Fargate: </span>
+            <strong
+              style={{
+                color:
+                  cloudOperation?.ecs?.status === "healthy"
+                    ? "#22c55e"
+                    : cloudOperation?.ecs?.status === "degraded"
+                      ? "#f59e0b"
+                      : "#94a3b8",
+              }}
+            >
+              {cloudOperation?.ecs?.running != null &&
+              cloudOperation?.ecs?.desired != null
+                ? `${cloudOperation.ecs.running}/${cloudOperation.ecs.desired} Running`
+                : "Unknown"}
+            </strong>
+          </div>
+
+
+          <div style={{ marginBottom: 16 }}>
+            <span>ALB Health: </span>
+            <strong
+              style={{
+                color:
+                  cloudOperation?.ecs?.alb?.status === "healthy"
+                    ? "#22c55e"
+                    : cloudOperation?.ecs?.alb?.status === "degraded"
+                      ? "#f59e0b"
+                      : "#94a3b8",
+              }}
+            >
+              {cloudOperation?.ecs?.alb?.healthy != null &&
+              cloudOperation?.ecs?.alb?.total != null
+                ? `${cloudOperation.ecs.alb.healthy}/${cloudOperation.ecs.alb.total} Healthy`
+                : "Unknown"}
+            </strong>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <span>Availability Zones: </span>
+            <strong
+              style={{
+                color:
+                  cloudOperation?.ecs?.alb?.zones?.length === 2
+                    ? "#22c55e"
+                    : cloudOperation?.ecs?.alb?.zones
+                      ? "#f59e0b"
+                      : "#94a3b8",
+              }}
+            >
+              {cloudOperation?.ecs?.alb?.zones
+                ? `${cloudOperation.ecs.alb.zones.length}/2 Active`
+                : "Unknown"}
+            </strong>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <span>Last operation: </span>
+            <strong>{cloudOperation?.status ?? "unknown"}</strong>
+
+            {cloudOperation?.action && (
+              <span> — {cloudOperation.action.toUpperCase()}</span>
+            )}
+            {cloudOperation?.finished_at && (
+              <div style={{ fontSize: 12, opacity: 0.6, marginTop: 6 }}>
+                Completed: {new Date(cloudOperation.finished_at).toLocaleString("fr-FR")}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <button
+              className="cloud-action-button cloud-action-on"
+              type="button"
+              disabled={
+                cloudOperation?.status === "running" ||
+                cloudOperation?.status === "unknown" ||
+                cloudOperation?.cloud_mode === "TRANSITION" ||
+                cloudOperation?.cloud_mode === "ON" ||
+                !cloudOperation?.cloud_mode
+              }
+              onClick={() =>
+                setPendingAction({
+                  service: "aws-cloud",
+                  action: "cloud_on",
+                })
+              }
+            >
+              🟢 CLOUD ON
+            </button>
+
+            <button
+              className="cloud-action-button cloud-action-off"
+              type="button"
+              disabled={
+                cloudOperation?.status === "running" ||
+                cloudOperation?.status === "unknown" ||
+                cloudOperation?.cloud_mode === "TRANSITION" ||
+                cloudOperation?.cloud_mode === "OFF" ||
+                !cloudOperation?.cloud_mode
+              }
+              onClick={() =>
+                setPendingAction({
+                  service: "aws-cloud",
+                  action: "cloud_off",
+                })
+              }
+            >
+              🔴 CLOUD OFF
+            </button>
+          </div>
+
+          <p style={{ fontSize: 12, opacity: 0.65, marginTop: 16 }}>
+            Administrator authentication required.
+          </p>
+        </div>
+      )}
 
       <div className="architecture-toolbar">
         <div className="architecture-legend">

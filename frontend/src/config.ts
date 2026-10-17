@@ -1,4 +1,8 @@
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+export const API_URL =
+  import.meta.env.VITE_API_URL ||
+  (window.location.hostname.endsWith(".cloudfront.net")
+    ? "/api"
+    : "http://localhost:8000")
 
 export const DEPLOYMENT_ENV =
   import.meta.env.VITE_DEPLOYMENT_ENV === 'aws' ? 'aws' : 'local'
