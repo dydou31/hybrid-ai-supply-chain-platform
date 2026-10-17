@@ -81,6 +81,44 @@ def start_cloud_operation(action: str):
                 "before starting another operation"
             )
 
+        # Prevent redundant or unsafe CLOUD ON/OFF operations.
+        result = subprocess.run(
+            [
+                "aws", "ssm", "get-parameter",
+                "--name", "/hybrid-ai/cloud/mode",
+                "--region", "eu-west-3",
+                "--profile", "hybrid-ai-terraform",
+                "--query", "Parameter.Value",
+                "--output", "text",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            raise RuntimeError(
+                "Cannot verify AWS cloud mode. Operation refused."
+            )
+
+        cloud_mode = result.stdout.strip().upper()
+
+        if cloud_mode not in {"ON", "OFF", "TRANSITION"}:
+            raise RuntimeError(
+                "Unknown AWS cloud mode. Operation refused."
+            )
+
+        if cloud_mode == "TRANSITION":
+            raise RuntimeError(
+                "AWS cloud transition already in progress."
+            )
+
+        if cloud_mode == action.upper():
+            raise RuntimeError(
+                f"AWS cloud is already {cloud_mode}."
+            )
+
         operation_id = str(uuid.uuid4())
         log_dir = PROJECT_DIR / "logs" / "cloud"
         log_dir.mkdir(parents=True, exist_ok=True)
