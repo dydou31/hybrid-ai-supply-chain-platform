@@ -1,0 +1,144 @@
+name: Deploy AWS ECS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hybrid-ai-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    name: Validate application
+    runs-on: ubuntu-latest
+
+    env:
+      REDIS_URL: redis://localhost:6379/0
+      DATABASE_URL: postgresql://dylan:dylan@localhost:5432/hybrid_ai
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      postgres:
+        image: pgvector/pgvector:pg15
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: dylan
+          POSTGRES_PASSWORD: dylan
+          POSTGRES_DB: hybrid_ai
+        options: >-
+          --health-cmd "pg_isready -U dylan -d hybrid_ai"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run migrations
+        run: alembic upgrade head
+
+      - name: Run tests
+        run: PYTHONPATH=. pytest
+
+  deploy:
+    name: Deploy FastAPI to AWS
+    needs: tests
+    runs-on: ubuntu-latest
+    environment: production
+
+    permissions:
+      id-token: write
+      contents: read
+
+    env:
+      AWS_REGION: eu-west-3
+      AWS_ACCOUNT_ID: "021914193620"
+      ECS_CLUSTER: hybrid-ai-cluster
+      ECS_SERVICE: hybrid-ai-api-service
+      ECR_REPOSITORY: hybrid-ai-api
+      CONTAINER_NAME: hybrid-ai-api
+      CLOUD_MODE_PARAMETER: /hybrid-ai/cloud/mode
+
+    steps:
+      - name: Require main branch
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Only main can deploy to production."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::021914193620:role/hybrid-ai-github-deploy
+          aws-region: eu-west-3
+
+      - name: Require CLOUD ON
+        run: |
+          MODE=$(aws ssm get-parameter \
+            --name "$CLOUD_MODE_PARAMETER" \
+            --query 'Parameter.Value' \
+            --output text)
+
+          echo "AWS Cloud mode: $MODE"
+
+          if [ "$MODE" != "ON" ]; then
+            echo "::error::Cloud must be ON to deploy."
+            exit 1
+          fi
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        env:
+          IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}
+        run: |
+          IMAGE="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG"
+
+          docker build \
+            --platform linux/amd64 \
+            -t "$IMAGE" \
+            .
+
+          docker push "$IMAGE"
+
+          echo "IMAGE_URI=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Install DynamoDB lock dependencies
+        run: python3 -m pip install boto3
+
+      - name: Deploy ECS with DynamoDB lock
+        timeout-minutes: 30
+        run: |
+          set -Eeuo pipefail
+
+          python3 scripts/cloud-lock.py run -- \
+            bash scripts/deploy-ecs-locked.sh
