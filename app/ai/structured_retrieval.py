@@ -191,7 +191,6 @@ def get_relevant_structured_context(question: str) -> str:
                 )
 
                 supplier = best["supplier"]
-                on_time_rate = 100 - best["delay_rate"]
 
                 lines.append(
                     "Best supplier according to available operational KPIs:"
@@ -199,7 +198,11 @@ def get_relevant_structured_context(question: str) -> str:
                 lines.append(f"Supplier: {supplier.name}")
                 lines.append(f"Risk level: {supplier.risk_level}")
                 lines.append(
-                    f"On-time delivery rate: {on_time_rate:.2f}%"
+                    f"Delayed purchase order rate: {best['delay_rate']:.2f}%"
+                )
+                lines.append(
+                    "Actual delivery OTD: unavailable "
+                    "(actual receipt dates are missing)"
                 )
                 lines.append(
                     f"Delayed purchase orders: "
@@ -655,6 +658,18 @@ def get_relevant_structured_context(question: str) -> str:
                 (
                     "Total delayed purchase orders: "
                     f"{total_delayed_orders}"
+                ),
+                (
+                    "Delayed purchase order rate "
+                    "(based on current delay classification): "
+                    f"{total_delayed_orders / len(purchase_orders) * 100:.2f}%"
+                    if purchase_orders
+                    else "Delayed purchase order rate: N/A (no orders)"
+                ),
+                (
+                    "Actual delivery OTD/OTIF: unavailable "
+                    "(actual receipt dates and delivered quantities "
+                    "are not available)"
                 ),
             ]
         )

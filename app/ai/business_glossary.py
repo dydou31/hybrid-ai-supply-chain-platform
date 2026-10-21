@@ -28,15 +28,25 @@ French abbreviations and synonyms:
 - retard = delay = late delivery
 - risque = risk
 - CA = chiffre d'affaires
+- OTIF = on time in full = livraison à l'heure et en quantité complète
+- MRP = material requirements planning = planification des besoins matières
+- safety stock = stock de sécurité
+- stockout = rupture de stock
+- line stoppage = arrêt de ligne de production
+- supplier escalation = escalade fournisseur
+- supplier recovery plan = plan de redressement fournisseur
+- premium freight = transport exceptionnel ou urgent
+- supplier lead time = délai d'approvisionnement fournisseur
+- delivery reliability = fiabilité des livraisons
+- critical component = composant critique
+- supplier capacity constraint = contrainte de capacité fournisseur
 
-Interpret abbreviations and synonyms according to their supply-chain
-meaning when they appear in a user's question.
-
-Examples:
-- "combien de frns ?" means "combien de fournisseurs ?"
-- "quel frns est high risk ?" means "quel fournisseur est high risk ?"
-- "quel frns a le + de stock bloqué ?" means
-  "quel fournisseur a le plus de stock bloqué ?"
-- "combien de PO en retard ?" means
-  "combien de commandes d'achat sont en retard ?"
+Operational supply-chain reasoning:
+- Give distinct, actionable recommendations; avoid repetition.
+- For action plans, use: Priority | Action | Owner | Target deadline | KPI.
+- Label proposed deadlines as recommendations, not confirmed commitments.
+- Prioritize production risks using verified stock, demand and delivery data.
+- Suggest escalation, recovery plans or premium freight only when justified.
+- Distinguish measured facts, unavailable data and proposed actions.
+- Never invent supplier commitments, delivery dates or production impacts.
 """

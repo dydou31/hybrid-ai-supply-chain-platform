@@ -6,6 +6,7 @@ from typing import Callable, Optional
 
 from app.database import SessionLocal
 from app.ai.models import KnowledgeDocument
+from app.ai.chunk_models import KnowledgeChunk
 from app.ai.embeddings import generate_embedding
 
 tracer = trace.get_tracer(__name__)
@@ -60,13 +61,13 @@ def semantic_search(
 
         try:
             with tracer.start_as_current_span("pgvector.search") as search_span:
-                distance = KnowledgeDocument.embedding.cosine_distance(
+                distance = KnowledgeChunk.embedding.cosine_distance(
                     query_embedding
                 )
 
                 results = (
-                    db.query(KnowledgeDocument, distance.label("distance"))
-                    .filter(KnowledgeDocument.embedding.isnot(None))
+                    db.query(KnowledgeChunk, distance.label("distance"))
+                    .filter(KnowledgeChunk.embedding.isnot(None))
                     .filter(distance <= (1 - min_similarity))
                     .order_by(distance)
                     .limit(limit)
@@ -89,9 +90,11 @@ def semantic_search(
                 documents.append(
                     {
                         "id": document.id,
-                        "title": document.title,
+                        "document_id": document.document_id,
+                        "chunk_index": document.chunk_index,
+                        "title": document.document.title,
                         "content": document.content,
-                        "source": document.source,
+                        "source": document.document.source,
                         "similarity": round(similarity, 4),
                     }
                 )
@@ -105,8 +108,8 @@ def semantic_search(
                 import math
 
                 diagnostic_results = (
-                    db.query(KnowledgeDocument, distance.label("distance"))
-                    .filter(KnowledgeDocument.embedding.isnot(None))
+                    db.query(KnowledgeChunk, distance.label("distance"))
+                    .filter(KnowledgeChunk.embedding.isnot(None))
                     .order_by(distance)
                     .limit(20)
                     .all()
@@ -144,7 +147,9 @@ def semantic_search(
 
                     vector_diagnostics.append({
                         "id": document.id,
-                        "title": document.title,
+                        "document_id": document.document_id,
+                        "chunk_index": document.chunk_index,
+                        "title": document.document.title,
                         "rank": rank,
                         "selected": (
                             pgvector_similarity >= min_similarity
