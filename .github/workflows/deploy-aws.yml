@@ -136,7 +136,7 @@ jobs:
         run: python3 -m pip install boto3
 
       - name: Deploy ECS with DynamoDB lock
-        timeout-minutes: 30
+        timeout-minutes: 40
         run: |
           set -Eeuo pipefail
 

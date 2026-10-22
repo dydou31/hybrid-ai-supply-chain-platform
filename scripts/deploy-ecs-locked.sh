@@ -98,11 +98,58 @@ aws ecs update-service \
   --output json
 
 # 8. Conserver le verrou jusqu'à la stabilisation
-echo "⏳ Attente de stabilisation ECS..."
+echo "⏳ Attente de stabilisation ECS (maximum 25 minutes)..."
 
-aws ecs wait services-stable \
-  --cluster "$ECS_CLUSTER" \
-  --services "$ECS_SERVICE"
+STABLE=false
+
+for attempt in $(seq 1 100); do
+  SERVICE_JSON=$(aws ecs describe-services \
+    --cluster "$ECS_CLUSTER" \
+    --services "$ECS_SERVICE" \
+    --output json)
+
+  if [[ "$(jq '.services | length' <<< "$SERVICE_JSON")" != "1" ]]; then
+    echo "::error::Service ECS introuvable."
+    exit 1
+  fi
+
+  ROLLOUT_STATE=$(jq -r --arg TASK "$NEW_TASK" '
+    [.services[0].deployments[]
+     | select(.taskDefinition == $TASK)
+     | .rolloutState // "UNKNOWN"] | first // "UNKNOWN"
+  ' <<< "$SERVICE_JSON")
+
+  RUNNING=$(jq -r '.services[0].runningCount' <<< "$SERVICE_JSON")
+  DESIRED=$(jq -r '.services[0].desiredCount' <<< "$SERVICE_JSON")
+  PENDING=$(jq -r '.services[0].pendingCount' <<< "$SERVICE_JSON")
+  DEPLOYMENTS=$(jq -r '.services[0].deployments | length' <<< "$SERVICE_JSON")
+  ACTIVE_TASK=$(jq -r '.services[0].taskDefinition' <<< "$SERVICE_JSON")
+
+  echo "[$attempt/100] ECS : $RUNNING/$DESIRED running, $PENDING pending, rollout=$ROLLOUT_STATE"
+
+  if [[ "$ROLLOUT_STATE" == "FAILED" ]]; then
+    echo "::error::Le déploiement ECS a échoué."
+    exit 1
+  fi
+
+  if [[ "$ROLLOUT_STATE" == "COMPLETED" &&
+        "$RUNNING" == "$DESIRED" &&
+        "$PENDING" == "0" &&
+        "$DEPLOYMENTS" == "1" &&
+        "$ACTIVE_TASK" == "$NEW_TASK" ]]; then
+    STABLE=true
+    break
+  fi
+
+  sleep 15
+done
+
+if [[ "$STABLE" != "true" ]]; then
+  echo "::error::ECS non stabilisé après 25 minutes."
+  exit 1
+fi
+
+echo "✅ Nouvelle version ECS stabilisée."
 
 # 9. Vérifier la version réellement active
 CURRENT_TASK=$(aws ecs describe-services \
