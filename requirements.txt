@@ -17,3 +17,4 @@ opentelemetry-instrumentation-fastapi
 opentelemetry-exporter-otlp
 boto3
 webauthn
+opentelemetry-sdk-extension-aws

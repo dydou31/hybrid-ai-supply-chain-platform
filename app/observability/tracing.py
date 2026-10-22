@@ -3,6 +3,7 @@ import os
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.extension.aws.trace import AwsXRayIdGenerator
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
@@ -13,7 +14,7 @@ def setup_tracing():
         "service.version": "0.1.0",
     })
 
-    provider = TracerProvider(resource=resource)
+    provider = TracerProvider(resource=resource, id_generator=AwsXRayIdGenerator())
 
     otlp_endpoint = os.getenv(
         "OTEL_EXPORTER_OTLP_ENDPOINT",
