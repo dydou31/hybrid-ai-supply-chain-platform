@@ -110,9 +110,18 @@ def start_cloud_operation(action: str):
             )
 
         if cloud_mode == "TRANSITION":
-            raise RuntimeError(
-                "AWS cloud transition already in progress."
+            recovery_allowed = (
+                action == "on"
+                and saved is not None
+                and saved.get("action") == "off"
+                and saved.get("status") == "failed"
+                and _process is None
             )
+
+            if not recovery_allowed:
+                raise RuntimeError(
+                    "AWS cloud transition already in progress."
+                )
 
         if cloud_mode == action.upper():
             raise RuntimeError(

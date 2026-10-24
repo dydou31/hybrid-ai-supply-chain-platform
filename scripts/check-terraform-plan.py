@@ -46,6 +46,21 @@ for resource in plan.get("resource_changes", []):
         dangerous.append(f"{address} : {actions}")
         continue
 
+    if address in {"aws_ecs_service.api", "aws_ecs_service.grafana"}:
+        change = resource["change"]
+        before = change.get("before") or {}
+        after = change.get("after") or {}
+
+        changed = {
+            key for key in set(before) | set(after)
+            if before.get(key) != after.get(key)
+        }
+
+        if changed != {"desired_count"}:
+            dangerous.append(
+                f"{address} : modification ECS inattendue : {sorted(changed)}"
+            )
+
     if address == "aws_appautoscaling_target.ecs_api":
         change = resource["change"]
         before = change.get("before") or {}
