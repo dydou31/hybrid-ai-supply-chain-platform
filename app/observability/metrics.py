@@ -26,6 +26,12 @@ AWS_COST_DAILY_USD = Gauge(
     "Latest available AWS daily unblended cost in USD",
 )
 
+AWS_COST_DAILY_BY_DATE_USD = Gauge(
+    "aws_cost_daily_by_date_usd",
+    "AWS daily gross usage cost before credits in USD",
+    ["date"],
+)
+
 AWS_COST_MONTHLY_FORECAST_USD = Gauge(
     "aws_cost_monthly_forecast_usd",
     "Projected AWS monthly cost in USD based on current daily burn rate",
@@ -52,7 +58,40 @@ AWS_CREDITS_MTD_USD = Gauge(
     "AWS month-to-date credits applied in USD",
 )
 
+AWS_CREDITS_USED_CONFIRMED_USD = Gauge(
+    "aws_credits_used_confirmed_usd",
+    "AWS credits actually consumed based on confirmed balances in USD",
+)
+
+AWS_CREDITS_USED_ESTIMATED_USD = Gauge(
+    "aws_credits_used_estimated_usd",
+    "AWS estimated credits consumed in USD",
+)
+
+AWS_CREDITS_REMAINING_ESTIMATED_USD = Gauge(
+    "aws_credits_remaining_estimated_usd",
+    "AWS estimated remaining credits in USD",
+)
+
 AWS_CREDITS_REMAINING_USD = Gauge(
     "aws_credits_remaining_usd",
     "AWS credits remaining balance in USD",
+)
+
+
+# AWS Billing — persistent data freshness monitoring
+
+AWS_BILLING_LAST_CHANGE_DETECTED_TIMESTAMP = Gauge(
+    "aws_billing_last_change_detected_timestamp_seconds",
+    "Timestamp when a change in AWS Billing data was last detected",
+)
+
+AWS_BILLING_LAST_SUCCESSFUL_CHECK_TIMESTAMP = Gauge(
+    "aws_billing_last_successful_check_timestamp_seconds",
+    "Timestamp of the last successful AWS Billing collection",
+)
+
+AWS_BILLING_DATA_ESTIMATED = Gauge(
+    "aws_billing_data_estimated",
+    "Whether AWS Billing data is estimated: 1=yes, 0=no",
 )
